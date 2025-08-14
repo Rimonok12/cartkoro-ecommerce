@@ -10,7 +10,7 @@
 // }
 
 // pages/_app.js
-import { ClerkProvider } from '@clerk/nextjs';
+// import { ClerkProvider } from '@clerk/nextjs';
 import { AppContextProvider } from '@/context/AppContext';
 import { Toaster } from 'react-hot-toast';
 import '@/styles/globals.css';
@@ -19,11 +19,12 @@ import '@/styles/globals.css';
 
 export default function MyApp({ Component, pageProps }) {
   return (
-    <ClerkProvider>
+    // <ClerkProvider>
+    <>
       <Toaster />
       <AppContextProvider>
         <Component {...pageProps} />
       </AppContextProvider>
-    </ClerkProvider>
+    </>
   );
 }
