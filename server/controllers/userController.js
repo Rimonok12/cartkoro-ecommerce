@@ -50,7 +50,15 @@ const verifyOtp = async (req, res) => {
     let isNewUser = false;
 
     if (!user) {
-      user = await User.create({ phone_number: phone, full_name: '', email: '' });
+      // No user found — create with blank profile
+      const userData = {
+        phone_number:phone
+      };
+      user = await User.create(userData);
+      isNewUser = true;
+
+    } else if (!user.full_name || user.full_name.trim() === '') {
+      // Existing user but no name → incomplete profile
       isNewUser = true;
     }
 
@@ -63,7 +71,6 @@ const verifyOtp = async (req, res) => {
     await CustomerOtp.deleteOne({ _id: record._id });
 
     res.status(200).json({
-      message: 'OTP verified successfully',
       token,
       newUser: isNewUser
     });
@@ -79,13 +86,10 @@ const register = async (req, res) => {
   try {
     const { full_name, email, phone_number, referrerCode } = req.body;
 
-    if (!phone_number || !/^\d{11}$/.test(phone_number)) {
-      return res.status(400).json({ error: 'Invalid phone number' });
-    }
-
-    const existing = await User.findOne({ phone_number });
-    if (existing) {
-      return res.status(400).json({ error: 'Phone number already registered' });
+    // Check if the user already exists
+    const existingUser = await User.findOne({ phone_number });
+    if (!existingUser) {
+      return res.status(200).json({ error: 'User not found. Please verify OTP first.' });
     }
 
     // Extract first name (default 'USER' if empty)
@@ -99,13 +103,13 @@ const register = async (req, res) => {
     // Generate 4-digit random number
     const randomDigits = Math.floor(1000 + Math.random() * 9000);
 
-    // Final referral code
-    const referralCode = `${firstName}${randomDigits}`;
+    // Final referral code (only if user doesn’t already have one)
+    const referralCode = existingUser.referral_code || `${firstName}${randomDigits}`;
 
-    const userData = {
-      full_name: full_name || '',
-      email: email || '',
-      phone_number,
+    // Prepare updated data
+    const updateData = {
+      full_name: full_name || existingUser.full_name,
+      email: email || existingUser.email,
       referral_code: referralCode
     };
 
@@ -113,16 +117,17 @@ const register = async (req, res) => {
     if (referrerCode) {
       const referrer = await User.findOne({ referral_code: referrerCode });
       if (referrer) {
-        userData.referred_by = referrer._id;
+        updateData.referred_by = referrer._id;
       }
     }
 
-    const user = await User.create(userData);
+    // Update and return new document
+    const updatedUser = await User.findByIdAndUpdate(existingUser._id, updateData, { new: true });
 
-    res.status(201).json({
+    res.status(200).json({
       message: 'User registered successfully',
       referral_code: referralCode,
-      user
+      user: updatedUser
     });
   } catch (err) {
     console.error('register error:', err);

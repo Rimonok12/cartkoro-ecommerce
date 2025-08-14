@@ -35,7 +35,7 @@ export default function NewUserForm({ phone }) {
   };
 
   return (
-    <div className="p-6 space-y-4 w-full max-w-sm bg-white shadow rounded">
+    <>
       <h1 className="text-xl font-semibold">Complete your profile</h1>
       <input
         placeholder="Full Name"
@@ -62,6 +62,6 @@ export default function NewUserForm({ phone }) {
       >
         Finish
       </button>
-    </div>
+    </>
   );
 }
