@@ -1,0 +1,76 @@
+import { useState } from 'react';
+import { useRouter } from 'next/router';
+import OTPInput from '../components/auth/OTPInput';
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [step, setStep] = useState('phone');
+  const [phone, setPhone] = useState('');
+  const [error, setError] = useState('');
+
+  const sendOtp = async () => {
+    if (!/^\d{11}$/.test(phone)) {
+      setError('Please enter a valid 11-digit phone number');
+      return;
+    }
+
+    setError('');
+
+    const res = await fetch('/api/user/generateOtp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+
+    if (res.ok) {
+      setStep('otp');
+    } else {
+      const data = await res.json();
+      setError(data.error || 'Failed to send OTP. Please try again.');
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="w-full max-w-sm bg-white p-6 rounded-xl shadow space-y-4">
+        <h1 className="text-2xl font-semibold">Sign in with Phone</h1>
+
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => {
+            setPhone(e.target.value);
+            if (error) setError('');
+          }}
+          placeholder="Enter phone number"
+          className="border px-3 py-2 rounded w-full"
+          disabled={step === 'otp'}
+        />
+
+        {error && <p className="text-red-600 text-sm">{error}</p>}
+
+        {step === 'phone' && (
+          <button
+            onClick={sendOtp}
+            className="w-full bg-orange-600 text-white py-2 rounded"
+          >
+            Continue
+          </button>
+        )}
+
+        {step === 'otp' && (
+          <OTPInput
+            phone={phone}
+            onVerify={(isNew) => {
+              if (isNew) {
+                router.push('/register'); // replace alert with register flow
+              } else {
+                router.push('/');
+              }
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
