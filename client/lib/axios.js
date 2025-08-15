@@ -2,16 +2,15 @@ import axios from 'axios';
 
 let accessToken = null;
 
-export const setAccessToken = (token) => {
-  accessToken = token;
+export const setAccessToken = (newToken) => {
+  accessToken = newToken;
 };
 
 const api = axios.create({
-  baseURL: process.env.NODE_HOST, // your BE URL
-  withCredentials: true, // send cookies (refresh token)
+  baseURL: '/api',
+  withCredentials: true
 });
 
-// Interceptor to attach accessToken
 api.interceptors.request.use((config) => {
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
@@ -19,24 +18,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Auto-refresh token if 401
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config;
+
     if (err.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {
-        const res = await axios.post(
-          `${process.env.NODE_HOST}/api/user/refresh`,
-          {},
-          { withCredentials: true }
-        );
-        accessToken = res.data.accessToken;
-        original.headers.Authorization = `Bearer ${accessToken}`;
+        const res = await axios.post('/api/user/refresh', {}, { withCredentials: true });
+        setAccessToken(res.data.accessToken);
+        original.headers.Authorization = `Bearer ${res.data.accessToken}`;
         return axios(original);
       } catch (refreshErr) {
-        console.log('🔒 Session expired');
         return Promise.reject(refreshErr);
       }
     }

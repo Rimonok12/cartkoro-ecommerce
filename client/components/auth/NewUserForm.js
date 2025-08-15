@@ -1,32 +1,30 @@
-import { useRouter } from 'next/router';
 import { useState } from 'react';
+import { useRouter } from 'next/router';
+import api from '@/lib/axios';
+import { useAppContext } from '@/context/AppContext';
 
 export default function NewUserForm({ phone }) {
   const router = useRouter();
+  const { login } = useAppContext();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [referral, setReferral] = useState('');
 
   const handleSubmit = async () => {
     try {
-      const res = await fetch('/api/user/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await api.post(
+        '/user/register',
+        {
           full_name: username,
           email,
           phone_number: phone,
-          referral_used: referral || null, // if you track who referred them
-        }),
-      });
+          referrerCode: referral || null,
+        },
+        { withCredentials: true }
+      );
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.error || 'Something went wrong');
-        return;
-      }
-
+      const data = res.data;
+      login(data.firstName);
       router.push('/');
     } catch (error) {
       console.error('Registration error:', error);

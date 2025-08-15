@@ -2,6 +2,26 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import OTPInput from '../components/auth/OTPInput';
 import NewUserForm from '../components/auth/NewUserForm';
+import { requireNoAuth } from '@/lib/checkAuth';
+
+export async function getServerSideProps(context) {
+  const { req } = context;
+  const cookies = req.cookies || {};
+  
+  const accessToken = cookies['CK-ACC-T'];
+  const refreshToken = cookies['CK-REF-T'];
+  
+  if (accessToken || refreshToken) {
+    return {
+      redirect: {
+        destination: '/',
+        permanent: false,
+      },
+    };
+  }
+  
+  return { props: {} };
+}
 
 export default function LoginPage() {
   const router = useRouter();
