@@ -1,9 +1,8 @@
 import { useRef, useState, useEffect } from 'react';
-import {setAccessToken} from "@/lib/axios";
+import { setAccessToken } from '@/lib/axios';
 import { useAppContext } from '@/context/AppContext';
 
-
-export default function OTPInput({ phone, onVerify }) {
+export default function OTPInput({ phone, onVerify, countryCode }) {
   const { login } = useAppContext();
   const [otp, setOtp] = useState(Array(6).fill(''));
   const [error, setError] = useState('');
@@ -42,7 +41,7 @@ export default function OTPInput({ phone, onVerify }) {
     const res = await fetch('/api/user/verifyOtp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, otp: code }),
+      body: JSON.stringify({ phone, otp: code, countryCode }),
       credentials: 'include',
     });
 
