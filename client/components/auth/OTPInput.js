@@ -1,7 +1,10 @@
-// components/auth/OTPInput.js
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import {setAccessToken} from "@/lib/axios";
+import { useAppContext } from '@/context/AppContext';
+
 
 export default function OTPInput({ phone, onVerify }) {
+  const { login } = useAppContext();
   const [otp, setOtp] = useState(Array(6).fill(''));
   const [error, setError] = useState('');
   const inputs = useRef([]);
@@ -13,14 +16,9 @@ export default function OTPInput({ phone, onVerify }) {
     newOtp[idx] = value;
     setOtp(newOtp);
 
-    // Move to next box
+    // Move to next input
     if (value && idx < 5) {
       inputs.current[idx + 1].focus();
-    }
-
-    // Auto-submit on last digit
-    if (idx === 5 && value) {
-      handleVerify([...newOtp].join(''));
     }
   };
 
@@ -38,21 +36,14 @@ export default function OTPInput({ phone, onVerify }) {
     const pastedArray = pasted.split('');
     setOtp(pastedArray);
     inputs.current[5].focus();
-    handleVerify(pasted);
   };
 
-  const handleVerify = async (manualCode) => {
-    const code = manualCode || otp.join('');
-
-    if (code.length !== 6) {
-      setError('Please enter the complete OTP');
-      return;
-    }
-
+  const handleVerify = async (code) => {
     const res = await fetch('/api/user/verifyOtp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, otp: code }),
+      credentials: 'include',
     });
 
     const data = await res.json();
@@ -60,10 +51,20 @@ export default function OTPInput({ phone, onVerify }) {
     if (res.ok && !data.error) {
       setError('');
       onVerify(data.newUser);
+      setAccessToken(data.accessToken);
+      login(data.firstName);
     } else {
       setError(data.error || 'Invalid OTP, please try again.');
     }
   };
+
+  // Watch for complete OTP
+  useEffect(() => {
+    const code = otp.join('');
+    if (code.length === 6 && /^\d{6}$/.test(code)) {
+      handleVerify(code);
+    }
+  }, [otp]);
 
   return (
     <div className="space-y-4">
@@ -84,14 +85,6 @@ export default function OTPInput({ phone, onVerify }) {
       </div>
 
       {error && <p className="text-red-600 text-sm text-center">{error}</p>}
-
-      <button
-        type="button"
-        onClick={() => handleVerify()}
-        className="w-full bg-orange-600 text-white py-2 rounded hover:bg-orange-700 transition"
-      >
-        Verify OTP
-      </button>
     </div>
   );
 }

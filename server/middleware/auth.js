@@ -1,11 +1,23 @@
 const jwt = require('jsonwebtoken');
 
 exports.auth = (req, res, next) => {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer '))
-    return res.status(401).json({ message: 'Unauthorized' });
+  let token;
 
-  const token = header.split(' ')[1];
+  // 1️. Check Authorization header
+  const header = req.headers.authorization;
+  if (header && header.startsWith('Bearer ')) {
+    token = header.split(' ')[1];
+  }
+
+  // 2️. Fallback to cookie (if you later store access token there)
+  if (!token && req.cookies?.['CK-ACC-T']) {
+    token = req.cookies['CK-ACC-T'];
+  }
+
+  if (!token) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
