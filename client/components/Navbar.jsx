@@ -4,7 +4,7 @@ import { assets, BagIcon, BoxIcon, CartIcon, HomeIcon } from '@/assets/assets';
 import Link from 'next/link';
 import { useAppContext } from '@/context/AppContext';
 import Image from 'next/image';
-import LogoutButton from '@/components/Logout.js';
+import LogoutButton from '@/components/logout.jsx';
 
 
 const Navbar = () => {
