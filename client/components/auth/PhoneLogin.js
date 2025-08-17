@@ -61,7 +61,7 @@ export default function PhoneLogin({ onContinue, defaultCode = '+880' }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-semibold">Login or Signup</h2>
+      <h2 className="text-2xl pt-17 font-semibold">Login or Signup</h2>
 
       {/* combined field like Myntra */}
       <div className="flex items-stretch border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-gray-800">
@@ -76,7 +76,7 @@ export default function PhoneLogin({ onContinue, defaultCode = '+880' }) {
             </option>
           ))}
         </select>
-        <div className="w-px bg-gray-200" />
+        <div className="w-px bg-gray-200 " />
         <input
           type="tel"
           value={phone}

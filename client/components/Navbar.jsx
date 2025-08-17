@@ -160,7 +160,7 @@ const Navbar = () => {
       <Image
         className="cursor-pointer w-28 md:w-32"
         onClick={() => router.push('/')}
-        src="/logo_cartKoro.png"
+        src="/1.png"
         width={112}
         height={32}
         alt="CartKoro"
