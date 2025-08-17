@@ -10,10 +10,5 @@ router.post('/logout', auth, logout);
 router.post('/refresh', refresh);
 
 
-// Protected example route
-router.get('/me', auth, (req, res) => {
-    res.json({ message: 'Secure data', user: req.user });
-});
-
 module.exports = router;
 

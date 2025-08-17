@@ -65,7 +65,6 @@ export const AppContextProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    console.log("in context userName:", userName)
     if (userName) {
       localStorage.setItem('userName', userName);
     } else {

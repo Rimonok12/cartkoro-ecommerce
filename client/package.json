@@ -14,6 +14,7 @@
     "@clerk/nextjs": "^6.29.0",
     "axios": "^1.11.0",
     "inngest": "^3.40.1",
+    "lucide-react": "^0.539.0",
     "mongoose": "^8.17.1",
     "next": "15.4.5",
     "react": "19.1.0",
