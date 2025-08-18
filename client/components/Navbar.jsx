@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // 'use client';
 // import React from 'react';
 // import { assets, BagIcon, BoxIcon, CartIcon, HomeIcon } from '@/assets/assets';
@@ -6,6 +7,15 @@
 // import Image from 'next/image';
 // // import LogoutButton from '@/components/Logout.js';
 // import LogoutButton from './logout';
+=======
+'use client';
+import React from 'react';
+import { assets, BagIcon, BoxIcon, CartIcon, HomeIcon } from '@/assets/assets';
+import Link from 'next/link';
+import { useAppContext } from '@/context/AppContext';
+import Image from 'next/image';
+import LogoutButton from '@/components/logout.jsx';
+>>>>>>> origin/main
 
 // const Navbar = () => {
 //   // clerkProviding:
