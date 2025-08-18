@@ -1,7 +1,7 @@
 // lib/s3Upload.js
 export async function s3Upload(file, endpoint) {
     if (!file) throw new Error('No file provided');
-  
+
     // 1) Get presigned URL from your Next API
     const signRes = await fetch(endpoint, {
       method: 'POST',

@@ -1,6 +1,8 @@
-const { Category, Product } = require('../models/productModels');
+const { Category, Product, Variant, ProductSku } = require('../models/productModels');
+const mongoose = require("mongoose");
 
 
+/* ======================= CATEGORY ======================= */
 const createCategory = async (req, res) => {
   try {
     const { name, parentId } = req.body;
@@ -65,32 +67,109 @@ const getCategories = async (_req, res) => {
   }
 };
 
-
-const createProduct = async (req, res) => {
+/* ======================= VARIANT ======================= */
+const createVariant = async (req, res) => {
   try {
-    const { category, name, description, MRP, SP, thumbnail_url, thumbnail_img, side_imgs } = req.body;
+    const { categoryId, name, values } = req.body;
 
-    if (!category) return res.status(400).json({ message: 'category is required' });
-    const cat = await Category.findById(category);
-    if (!cat) return res.status(400).json({ message: 'Invalid category id' });
+    if (!categoryId || !name) {
+      return res.status(400).json({ message: 'categoryId and name are required' });
+    }
 
-    const product = await Product.create({
-      category: cat._id,
-      name,
-      description,
-      MRP,
-      SP,
-      thumbnail_url,
-      thumbnail_img,
-      side_imgs
+    const category = await Category.findById(categoryId);
+    if (!category) return res.status(404).json({ message: 'Category not found' });
+
+    const variant = await Variant.create({
+      category_id: category._id,
+      name: name.toLowerCase(),
+      values
     });
 
-    return res.status(201).json(product);
+    return res.status(201).json(variant);
   } catch (err) {
     return res.status(400).json({ message: err.message });
   }
 };
 
+const getVariants = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    if (!categoryId) {
+      return res.status(400).json({ message: 'categoryId is required' });
+    }
+
+    const variants = await Variant.find(
+      { category_id: categoryId },
+      { _id: 1, name: 1, values: 1 }  // only select required fields
+    ).lean();
+
+    // format response
+    const result = variants.map(v => ({
+      variantId: v._id,
+      name: v.name,
+      values: v.values
+    }));
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+
+/* ======================= PRODUCT ======================= */
+const createProduct = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { categoryId, name, description, variantRows } = req.body;
+
+    if (!categoryId || !name || !variantRows || variantRows.length === 0) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Step 1: Create Product
+    const product = new Product({
+      category_id: categoryId,
+      name,
+      description,
+      status: 1,
+    });
+
+    await product.save({ session });
+
+    // Step 2: Create SKUs
+    const skuDocs = variantRows.map((v) => ({
+      product_id: product._id,
+      variant_values: v.values, // expects object like {color: 'red', size: 'L'}
+      initial_stock: v.totalStock,
+      MRP: v.MRP,
+      SP: v.SP,
+      thumbnail_img: v.thumbnail_img,
+      side_imgs: v.side_imgs || [],
+      status: 1,
+    }));
+
+    await ProductSku.insertMany(skuDocs, { session });
+
+    // Commit transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(201).json({
+      message: "Product Successfully Added",
+    });
+
+   } catch (error) {
+    // Rollback transaction
+    await session.abortTransaction();
+    session.endSession();
+    console.error("createProduct Error", error)
+    return res.status(500).json({error: error});
+  }
+};
 
 
 const getAllProducts = async (req, res) => {
@@ -122,4 +201,11 @@ const getAllProducts = async (req, res) => {
 };
 
 
-module.exports={createCategory, getCategories, createProduct, getAllProducts} 
+module.exports = {
+  createCategory,
+  getCategories,
+  createVariant,
+  getVariants,
+  createProduct,
+  getAllProducts
+};

@@ -76,9 +76,9 @@ const verifyOtp = async (req, res) => {
 
     res.status(200).json({
       accessToken,
-      newUser: isNewUser,
       userId: user._id,
       firstName,
+      newUser: isNewUser,
       referralCode
     });
 
