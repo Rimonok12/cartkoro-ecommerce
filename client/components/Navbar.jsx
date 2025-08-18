@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 3d42509 (done)
 // 'use client';
 // import React from 'react';
 // import { assets, BagIcon, BoxIcon, CartIcon, HomeIcon } from '@/assets/assets';
@@ -7,6 +10,7 @@
 // import Image from 'next/image';
 // // import LogoutButton from '@/components/Logout.js';
 // import LogoutButton from './logout';
+<<<<<<< HEAD
 =======
 'use client';
 import React from 'react';
@@ -16,6 +20,8 @@ import { useAppContext } from '@/context/AppContext';
 import Image from 'next/image';
 import LogoutButton from '@/components/logout.jsx';
 >>>>>>> origin/main
+=======
+>>>>>>> 3d42509 (done)
 
 // const Navbar = () => {
 //   // clerkProviding:
@@ -170,7 +176,11 @@ const Navbar = () => {
       <Image
         className="cursor-pointer w-28 md:w-32"
         onClick={() => router.push('/')}
+<<<<<<< HEAD
         src="/1.png"
+=======
+        src="/logo_cartKoro.png"
+>>>>>>> 3d42509 (done)
         width={112}
         height={32}
         alt="CartKoro"

@@ -140,6 +140,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+<<<<<<< HEAD
       <div className="w-full  max-w-md bg-white rounded-2xl shadow overflow-hidden">
         {/* Banner on top (use your file in /public/images/login-offer.png) */}
         <div className="relative w-full h-28 md:h-32 ">
@@ -150,6 +151,16 @@ export default function LoginPage() {
             height={222}
             sizes="(max-width: 768px) 100vw, 33vw"
             className="w-full rounded-t-2xl h-auto object-top "
+=======
+      <div className="w-full max-w-md bg-white rounded-2xl shadow overflow-hidden">
+        {/* Banner on top (use your file in /public/images/login-offer.png) */}
+        <div className="relative w-full h-28 md:h-32">
+          <Image
+            src="/images/login-offer.png"
+            alt="offers"
+            fill
+            className="object-cover"
+>>>>>>> 3d42509 (done)
             priority
           />
         </div>
