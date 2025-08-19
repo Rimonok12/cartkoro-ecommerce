@@ -1,6 +1,10 @@
-const { Category, Product, Variant, ProductSku } = require('../models/productModels');
+const {
+  Category,
+  Product,
+  Variant,
+  ProductSku,
+} = require("../models/productModels");
 const mongoose = require("mongoose");
-
 
 /* ======================= CATEGORY ======================= */
 const createCategory = async (req, res) => {
@@ -10,7 +14,8 @@ const createCategory = async (req, res) => {
     if (parentId) {
       // child category -> level = parentId (must exist)
       const parent = await Category.findById(parentId);
-      if (!parent) return res.status(400).json({ message: 'Parent category not found' });
+      if (!parent)
+        return res.status(400).json({ message: "Parent category not found" });
       const cat = await Category.create({ name, level: parentId });
       return res.status(201).json(cat);
     } else {
@@ -25,26 +30,25 @@ const createCategory = async (req, res) => {
   }
 };
 
-
 const getCategories = async (_req, res) => {
   try {
     // fetch only what we need
     const all = await Category.find({}, { _id: 1, name: 1, level: 1 }).lean();
 
     // map of children lists keyed by parentId (init empty arrays)
-    const childrenMap = new Map(all.map(c => [String(c._id), []]));
+    const childrenMap = new Map(all.map((c) => [String(c._id), []]));
 
     // fill children for non-root nodes (root: level === _id)
     for (const c of all) {
       const parentId = String(c.level);
-      const selfId   = String(c._id);
+      const selfId = String(c._id);
       if (parentId !== selfId) {
         (childrenMap.get(parentId) || []).push(c);
       }
     }
 
     // build only roots with their direct children
-    const roots = all.filter(c => String(c.level) === String(c._id));
+    const roots = all.filter((c) => String(c.level) === String(c._id));
 
     // sort roots and children alphabetically (optional)
     roots.sort((a, b) => a.name.localeCompare(b.name));
@@ -52,13 +56,13 @@ const getCategories = async (_req, res) => {
       arr.sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    const result = roots.map(root => ({
+    const result = roots.map((root) => ({
       _id: root._id,
       name: root.name,
-      children: (childrenMap.get(String(root._id)) || []).map(ch => ({
+      children: (childrenMap.get(String(root._id)) || []).map((ch) => ({
         _id: ch._id,
-        name: ch.name
-      }))
+        name: ch.name,
+      })),
     }));
 
     return res.json(result);
@@ -73,16 +77,19 @@ const createVariant = async (req, res) => {
     const { categoryId, name, values } = req.body;
 
     if (!categoryId || !name) {
-      return res.status(400).json({ message: 'categoryId and name are required' });
+      return res
+        .status(400)
+        .json({ message: "categoryId and name are required" });
     }
 
     const category = await Category.findById(categoryId);
-    if (!category) return res.status(404).json({ message: 'Category not found' });
+    if (!category)
+      return res.status(404).json({ message: "Category not found" });
 
     const variant = await Variant.create({
       category_id: category._id,
       name: name.toLowerCase(),
-      values
+      values,
     });
 
     return res.status(201).json(variant);
@@ -96,19 +103,19 @@ const getVariants = async (req, res) => {
     const { categoryId } = req.params;
 
     if (!categoryId) {
-      return res.status(400).json({ message: 'categoryId is required' });
+      return res.status(400).json({ message: "categoryId is required" });
     }
 
     const variants = await Variant.find(
       { category_id: categoryId },
-      { _id: 1, name: 1, values: 1 }  // only select required fields
+      { _id: 1, name: 1, values: 1 } // only select required fields
     ).lean();
 
     // format response
-    const result = variants.map(v => ({
+    const result = variants.map((v) => ({
       variantId: v._id,
       name: v.name,
-      values: v.values
+      values: v.values,
     }));
 
     return res.json(result);
@@ -116,7 +123,6 @@ const getVariants = async (req, res) => {
     return res.status(500).json({ message: err.message });
   }
 };
-
 
 /* ======================= PRODUCT ======================= */
 const createProduct = async (req, res) => {
@@ -130,12 +136,15 @@ const createProduct = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    const userId = req.user.userId;
+
     // Step 1: Create Product
     const product = new Product({
       category_id: categoryId,
       name,
       description,
       status: 1,
+      userId,
     });
 
     await product.save({ session });
@@ -161,45 +170,162 @@ const createProduct = async (req, res) => {
     return res.status(201).json({
       message: "Product Successfully Added",
     });
-
-   } catch (error) {
+  } catch (error) {
     // Rollback transaction
     await session.abortTransaction();
     session.endSession();
-    console.error("createProduct Error", error)
-    return res.status(500).json({error: error});
+    console.error("createProduct Error", error);
+    return res.status(500).json({ error: error });
   }
 };
-
 
 const getAllProducts = async (req, res) => {
   try {
     const { categoryId } = req.query;
 
-    if (!categoryId) {
-      const products = await Product.find().populate('category', 'name');
-      return res.json(products);
+    let categoryIds = [];
+    if (categoryId) {
+      // find the target category
+      const cat = await Category.findById(categoryId).lean();
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+
+      // if root category (level == self) → include children too
+      categoryIds = [cat._id];
+      if (String(cat.level) === String(cat._id)) {
+        const children = await Category.find(
+          { level: cat._id, _id: { $ne: cat._id } },
+          { _id: 1 }
+        ).lean();
+        categoryIds.push(...children.map((c) => c._id));
+      }
     }
 
-    // find the target category
-    const cat = await Category.findById(categoryId).lean();
-    if (!cat) return res.status(404).json({ message: 'Category not found' });
+    // ✅ fetch only active products
+    const query = { status: 1 };
+    if (categoryIds.length) query.category_id = { $in: categoryIds };
 
-    // root if level == self → include all children whose level == rootId
-    let categoryIds = [cat._id];
-    if (String(cat.level) === String(cat._id)) {
-      const children = await Category.find({ level: cat._id, _id: { $ne: cat._id } }, { _id: 1 }).lean();
-      categoryIds = [cat._id, ...children.map(c => c._id)];
-    }
+    const products = await Product.find(query)
+      .populate("category_id", "name")
+      .lean();
 
-    const products = await Product.find({ category: { $in: categoryIds } })
-      .populate('category', 'name');
-    return res.json(products);
+    const productIds = products.map((p) => p._id);
+
+    // fetch SKUs
+    const skus = await ProductSku.find({
+      product_id: { $in: productIds },
+    })
+      .select("_id product_id MRP SP thumbnail_img status createdAt")
+      .sort({ createdAt: 1 }) // oldest first
+      .lean();
+
+    // pick first ACTIVE sku per product
+    const firstActiveSkuMap = {};
+    skus.forEach((sku) => {
+      const pid = sku.product_id.toString();
+      if (!firstActiveSkuMap[pid] && sku.status === 1) {
+        firstActiveSkuMap[pid] = sku;
+      }
+    });
+
+    // build final result (removed product_id & category_id)
+    const result = products
+      .map((p) => {
+        const sku = firstActiveSkuMap[p._id.toString()];
+        if (!sku) return null; // exclude products without active sku
+        return {
+          name: p.name,
+          category_name: p.category_id?.name || null,
+          sku_id: sku._id,
+          thumbnail_img: sku.thumbnail_img,
+          mrp: sku.MRP,
+          selling_price: sku.SP,
+          visitUrl: `/product/${sku._id}`,
+        };
+      })
+      .filter(Boolean);
+
+    return res.json(result);
   } catch (err) {
-    return res.status(400).json({ message: err.message });
+    console.error("getAllProducts error", err);
+    return res.status(500).json({ message: err.message });
   }
 };
 
+const getProductBySkuId = async (req, res) => {
+  try {
+    const { skuId } = req.params;
+
+    // 1. Find the requested SKU
+    const sku = await ProductSku.findById(skuId)
+      .select("-__v -createdAt -updatedAt")
+      .lean();
+    if (!sku) {
+      return res.status(404).json({ message: "SKU not found" });
+    }
+
+    // 2. Find its parent Product
+    const product = await Product.findById(sku.product_id)
+      .populate("category_id", "name")
+      .select("-__v -createdAt -updatedAt")
+      .lean();
+
+    if (!product) {
+      return res.status(404).json({ message: "Parent product not found" });
+    }
+
+    // 3. Fetch variants for this category
+    const variants = await Variant.find({
+      category_id: product.category_id,
+    }).lean();
+    const variantMap = {};
+    variants.forEach((v) => {
+      variantMap[v._id.toString()] = v.name; // {variantId: "Color"}
+    });
+
+    // 4. Get all SKUs for same product
+    const allSkus = await ProductSku.find({ product_id: sku.product_id })
+      .select("-__v -createdAt -updatedAt -product_id")
+      .lean();
+
+    // helper: convert variant_values {variantId: value} → {variantName: value}
+    const transformVariants = (skuDoc) => {
+      const { product_id, initial_stock, sold_stock, ...rest } = skuDoc; // strip product_id, initial_stock, sold_stock
+      const newVariants = {};
+      for (const [vId, val] of Object.entries(skuDoc.variant_values || {})) {
+        const variantName = variantMap[vId] || vId;
+        newVariants[variantName] = val;
+      }
+      return {
+        ...rest,
+        variant_values: newVariants,
+        left_stock: (initial_stock || 0) - (sold_stock || 0),
+      };
+    };
+
+    // Transform requested sku + other skus
+    const main_sku = transformVariants(sku);
+    const other_skus = allSkus
+      .filter((s) => String(s._id) !== String(sku._id))
+      .map(transformVariants);
+
+    // 5. Final response
+    const result = {
+      product_id: product._id,
+      product_name: product.name,
+      product_description: product.description,
+      product_status: product.status,
+      category_id: product.category_id?._id || null,
+      category_name: product.category_id?.name || null,
+      main_sku,
+      other_skus,
+    };
+
+    return res.json(result);
+  } catch (err) {
+    console.error("getProductBySku error", err);
+    return res.status(500).json({ message: err.message });
+  }
+};
 
 module.exports = {
   createCategory,
@@ -207,5 +333,6 @@ module.exports = {
   createVariant,
   getVariants,
   createProduct,
-  getAllProducts
+  getAllProducts,
+  getProductBySkuId,
 };

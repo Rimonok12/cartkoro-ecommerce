@@ -35,8 +35,13 @@ export default function SettingsPage() {
     let mounted = true;
     (async () => {
       try {
-        const res = await api.get("/profile/me", { withCredentials: true });
-        const u = res.data || {};
+        const res = await api.post(
+          "/user/getUserRedisData",
+          {},
+          { withCredentials: true }
+        );
+        const u = res.data;
+        console.log("u::::", u);
         if (!mounted) return;
         setFullName(u.full_name || u.fullName || u.name || "");
         setEmail(u.email || "");

@@ -1,12 +1,19 @@
+import { forwardCookies } from "@/lib/forwardCookies";
+
 export default async function handler(req, res) {
   try {
-    const url = `${process.env.NODE_HOST}/api/user/generateOtp`;
+    const url = `${process.env.NODE_HOST}/api/user/getUserRedisData`;
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req.body),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: req.headers.authorization || "",
+      },
+      credentials: "include",
     });
+
+    forwardCookies(response, res);
 
     const data = await response.json();
     return res.status(response.status).json(data);

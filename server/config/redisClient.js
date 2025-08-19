@@ -1,34 +1,48 @@
 // server/config/redisClient.js
-const Redis = require('ioredis');
+const Redis = require("ioredis");
 const redis = new Redis(process.env.REDIS_URI);
 
-const PROJECT_PREFIX = process.env.REDIS_PREFIX || '';
+const PROJECT_PREFIX = process.env.REDIS_PREFIX || "";
 
 const prefixedKey = (key) => `${PROJECT_PREFIX}${key}`;
 
-// Utility functions
-const set = async (key, value, expirySec) => {
-  return redis.set(prefixedKey(key), JSON.stringify(value), 'EX', expirySec);
+const setHash = async (key, field, value) => {
+  return redis.hset(prefixedKey(key), field, JSON.stringify(value));
 };
 
-const get = async (key) => {
-  const val = await redis.get(prefixedKey(key));
+const getHash = async (key, field) => {
+  const val = await redis.hget(prefixedKey(key), field);
   return val ? JSON.parse(val) : null;
+};
+
+const getAllHash = async (key) => {
+  const data = await redis.hgetall(prefixedKey(key));
+  const parsed = {};
+  for (const f in data) {
+    parsed[f] = JSON.parse(data[f]);
+  }
+  return parsed;
+};
+
+const delKey = async (key) => {
+  return redis.del(prefixedKey(key));
 };
 
 const connectRedis = async () => {
   try {
-    await redis.ping(); // Test connection
-    console.log('Redis connected');
+    await redis.ping();
+    console.log("Redis connected");
   } catch (err) {
-    console.error('Redis connection error:', err.message);
+    console.error("Redis connection error:", err.message);
     process.exit(1);
   }
 };
 
 module.exports = {
   connectRedis,
-  set,
-  get,
+  setHash,
+  getHash,
+  getAllHash,
+  delKey,
   raw: redis,
 };

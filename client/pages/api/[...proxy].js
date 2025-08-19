@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   const { proxy = [], ...restQs } = req.query;
   const path = Array.isArray(proxy) ? proxy.join("/") : proxy;
   const qs = new URLSearchParams(restQs).toString();
-  const base = process.env.NEXT_PUBLIC_API_ORIGIN || "http://localhost:8000";
+  const base = process.env.NODE_HOST;
   const url = `${base}/${path}${qs ? `?${qs}` : ""}`;
 
   // Build headers; forward cookies
