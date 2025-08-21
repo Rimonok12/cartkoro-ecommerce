@@ -1,145 +1,95 @@
-// import { createContext, useContext, useState, useEffect } from 'react';
-
-// const AppContext = createContext();
-
-// export function AppContextProvider({ children }) {
-//   const [userName, setUserName] = useState(null);
-
-//   // Load from localStorage on first render
-//   useEffect(() => {
-//     const storedName = localStorage.getItem('userName');
-//     if (storedName) {
-//       setUserName(storedName);
-//     }
-//   }, []);
-
-//   // Save to localStorage whenever userName changes
-//   useEffect(() => {
-//     if (userName) {
-//       localStorage.setItem('userName', userName);
-//     } else {
-//       localStorage.removeItem('userName');
-//     }
-//   }, [userName]);
-
-//   // Login = set username
-//   const login = (name) => setUserName(name);
-
-//   // Logout = clear username
-//   const logout = () => setUserName(null);
-
-//   return (
-//     <AppContext.Provider value={{ userName, login, logout }}>
-//       {children}
-//     </AppContext.Provider>
-//   );
-// }
-
-// export const useAppContext = () => useContext(AppContext);
-
-
-
-
-
-
-'use client'
+"use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { productsDummyData, userDummyData } from "@/assets/assets";
+import { setLogoutCallback } from "@/lib/axios";
 
 export const AppContext = createContext();
-
 export const useAppContext = () => useContext(AppContext);
 
-export const AppContextProvider = ({ children }) => {
-  const router = useRouter();
+export const AppContextProvider = ({
+  children,
+  initialUserData = {},
+  initialCartData = { items: [] },
+  initialCashbackData = {},
+}) => {
   const currency = process.env.NEXT_PUBLIC_CURRENCY;
 
-  // ---------- User Name / Login-Logout ----------
-  const [userName, setUserName] = useState(null);
+  // ---------- User State ----------
+  const [userData, setUserData] = useState(initialUserData);
+  const [cartData, setCartData] = useState(initialCartData || { items: [] });
+  const [cashbackData, setCashbackData] = useState(initialCashbackData);
 
+  // ---------- Logout ----------
+  const logoutContext = () => {
+    setUserData({});
+    setCartData({ items: [] });
+    setCashbackData({});
+    console.log("all crearrrr");
+  };
+
+  // Inject logoutContext into Axios once
   useEffect(() => {
-    const storedName = localStorage.getItem('userName');
-    if (storedName) setUserName(storedName);
+    setLogoutCallback(logoutContext);
   }, []);
 
-  useEffect(() => {
-    if (userName) {
-      localStorage.setItem('userName', userName);
+  // ---------- Cart Helpers ----------
+  const addToCart = (itemId, qty = 1) => {
+    const updated = { ...cartData, items: [...(cartData.items || [])] };
+    const index = updated.items.findIndex((item) => item.sku_id === itemId);
+
+    if (index >= 0) {
+      updated.items[index] = {
+        ...updated.items[index],
+        quantity: updated.items[index].quantity + qty,
+      };
     } else {
-      localStorage.removeItem('userName');
+      updated.items.push({ sku_id: itemId, quantity: qty });
     }
-  }, [userName]);
 
-  const login = (name) => setUserName(name);
-  const logout = () => setUserName(null);
-
-  // ---------- E-commerce Data ----------
-  const [products, setProducts] = useState([]);
-  const [userData, setUserData] = useState(false);
-  const [isSeller, setIsSeller] = useState(true);
-  const [cartItems, setCartItems] = useState({});
-
-  const fetchProductData = async () => setProducts(productsDummyData);
-  const fetchUserData = async () => setUserData(userDummyData);
-
-  const addToCart = (itemId) => {
-    const cartData = structuredClone(cartItems);
-    cartData[itemId] = (cartData[itemId] || 0) + 1;
-    setCartItems(cartData);
+    setCartData(updated);
   };
 
   const updateCartQuantity = (itemId, quantity) => {
-    const cartData = structuredClone(cartItems);
-    if (quantity === 0) {
-      delete cartData[itemId];
-    } else {
-      cartData[itemId] = quantity;
+    const updated = { ...cartData, items: [...cartData.items] };
+    const index = updated.items.findIndex((item) => item.sku_id === itemId);
+
+    if (index >= 0) {
+      if (quantity <= 0) {
+        updated.items.splice(index, 1);
+      } else {
+        updated.items[index] = { ...updated.items[index], quantity };
+      }
     }
-    setCartItems(cartData);
+
+    setCartData(updated);
   };
 
   const getCartCount = () => {
-    return Object.values(cartItems).reduce((sum, qty) => sum + qty, 0);
+    if (!cartData?.items) return 0;
+    return cartData.items.length;
   };
-
-  const getCartAmount = () => {
-    let total = 0;
-    for (const itemId in cartItems) {
-      const product = products.find((p) => p._id === itemId);
-      if (product) total += product.offerPrice * cartItems[itemId];
-    }
-    return Math.floor(total * 100) / 100;
-  };
-
-  // Fetch initial data
-  useEffect(() => { fetchProductData(); }, []);
-  useEffect(() => { fetchUserData(); }, []);
 
   // ---------- Context Value ----------
   const value = {
-    // Login/User
-    userName, login, logout,
+    // User
+    userData,
+    setUserData,
+    logoutContext,
 
-    // E-commerce
-    currency, router,
-    products, fetchProductData,
-    userData, fetchUserData,
-    isSeller, setIsSeller,
-    cartItems, setCartItems,
-    addToCart, updateCartQuantity,
-    getCartCount, getCartAmount
+    // Cart
+    cartData,
+    setCartData,
+    addToCart,
+    updateCartQuantity,
+    getCartCount,
+
+    // Cashback
+    cashbackData,
+    setCashbackData,
+
+    // Global
+    currency,
   };
 
-  return (
-    <AppContext.Provider value={value}>
-      {children}
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
-
-
-
-
-

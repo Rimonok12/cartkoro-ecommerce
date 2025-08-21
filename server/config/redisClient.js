@@ -6,8 +6,11 @@ const PROJECT_PREFIX = process.env.REDIS_PREFIX || "";
 
 const prefixedKey = (key) => `${PROJECT_PREFIX}${key}`;
 
-const setHash = async (key, field, value) => {
-  return redis.hset(prefixedKey(key), field, JSON.stringify(value));
+const setHash = async (key, field, value, expirySec) => {
+  await redis.hset(prefixedKey(key), field, JSON.stringify(value));
+  if (expirySec) {
+    await redis.expire(prefixedKey(key), expirySec);
+  }
 };
 
 const getHash = async (key, field) => {

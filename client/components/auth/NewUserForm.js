@@ -71,7 +71,6 @@ import { useAppContext } from "@/context/AppContext";
 
 export default function NewUserForm({ phone }) {
   const router = useRouter();
-  const { login } = useAppContext();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [referral, setReferral] = useState("");
@@ -96,9 +95,7 @@ export default function NewUserForm({ phone }) {
         },
         { withCredentials: true }
       );
-      const data = res.data;
-      login(data.firstName);
-      router.push("/");
+      window.location.href = "/";
     } catch (err) {
       console.error("Registration error:", err);
       setError(err?.response?.data?.error || "Server error");

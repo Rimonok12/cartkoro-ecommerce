@@ -2,14 +2,20 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import api from "@/lib/axios";
 import { useAppContext } from "@/context/AppContext";
+import { essentialsOnLoad } from "@/lib/ssrHelper";
 
 // SSR guard
 export async function getServerSideProps({ req }) {
   const c = req.cookies || {};
-  if (!(c["CK-ACC-T"] || c["CK-REF-T"])) {
+  if (!c["CK-REF-T"]) {
     return { redirect: { destination: "/login", permanent: false } };
   }
-  return { props: {} };
+  const essentials = await essentialsOnLoad(context);
+  return {
+    props: {
+      ...essentials.props,
+    },
+  };
 }
 
 export default function SettingsPage() {
@@ -30,32 +36,6 @@ export default function SettingsPage() {
 
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await api.post(
-          "/user/getUserRedisData",
-          {},
-          { withCredentials: true }
-        );
-        const u = res.data;
-        console.log("u::::", u);
-        if (!mounted) return;
-        setFullName(u.full_name || u.fullName || u.name || "");
-        setEmail(u.email || "");
-        setPhone(u.phone_number || u.phone || u.mobile || "");
-      } catch (e) {
-        setErr(e?.response?.data?.error || "Failed to load profile");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const saveProfile = async () => {
     try {

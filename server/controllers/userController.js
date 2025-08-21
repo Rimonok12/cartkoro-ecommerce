@@ -1,4 +1,5 @@
 const bcrypt = require("bcrypt");
+const { hashToken } = require("../utils/hash");
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -11,6 +12,7 @@ const {
   Reference,
   Cart,
   Cashback,
+  UserSession,
 } = require("../models/userModels");
 const {
   setHash,
@@ -76,12 +78,15 @@ const verifyOtp = async (req, res) => {
     };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
-
+    const hashedRefreshToken = hashToken(refreshToken);
     // Save refresh token in DB
-    await User.updateOne(
-      { _id: user._id, status: 1 },
-      { refresh_token: refreshToken }
-    );
+    await UserSession.create({
+      user_id: user._id,
+      refresh_token: hashedRefreshToken,
+      expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+      ip_address: req.ip,
+      device_info: req.headers["user-agent"] || "Unknown Device",
+    });
 
     // Store refresh token as HttpOnly cookie
     res.cookie("CK-REF-T", refreshToken, {
@@ -104,17 +109,28 @@ const verifyOtp = async (req, res) => {
 
     // redis---
     const userKey = `user:${user._id}`;
+    const EXPIRY_SEC = 60 * 24 * 60 * 60; // 60 days in seconds
     // Load profile
-    await setHash(userKey, "profile", {
-      firstName: firstName,
-      is_admin: user.is_admin,
-    });
+    await setHash(
+      userKey,
+      "profile",
+      {
+        firstName: firstName,
+        is_admin: user.is_admin,
+      },
+      EXPIRY_SEC
+    );
     // Load cart from DB (or empty)
     const existingCart = await Cart.findOne({ user_id: user._id });
-    await setHash(userKey, "cart", existingCart || { items: [] });
+    await setHash(userKey, "cart", existingCart || { items: [] }, EXPIRY_SEC);
     // Load cashback from DB (or empty)
     const existingCashback = await Cashback.findOne({ user_id: user._id });
-    await setHash(userKey, "cashback", existingCashback || { amount: 0 });
+    await setHash(
+      userKey,
+      "cashback",
+      existingCashback || { amount: 0 },
+      EXPIRY_SEC
+    );
 
     res.status(200).json({
       accessToken,
@@ -132,17 +148,27 @@ const verifyOtp = async (req, res) => {
 // ------------------- REFRESH TOKEN -------------------
 const refresh = async (req, res) => {
   try {
-    const token = req.cookies["CK-REF-T"];
-    if (!token) return res.status(401).json({ error: "No refresh token" });
+    const rawToken = req.cookies["CK-REF-T"];
+    if (!rawToken) return res.status(401).json({ error: "No refresh token" });
 
-    const payload = verifyRefreshToken(token);
+    const payload = verifyRefreshToken(rawToken);
+    const hashedToken = hashToken(rawToken);
 
-    const user = await User.findOne({
-      _id: payload.userId,
-      refresh_token: token,
-      status: 1,
+    const session = await UserSession.findOne({
+      user_id: payload.userId,
+      refresh_token: hashedToken,
+      expires_at: { $gt: new Date() },
     });
-    if (!user) return res.status(403).json({ error: "Invalid refresh token" });
+    if (!session) {
+      return res
+        .status(403)
+        .json({ error: "Invalid or expired refresh token" });
+    }
+
+    const user = await User.findOne({ _id: payload.userId, status: 1 });
+    if (!user) {
+      return res.status(403).json({ error: "User not found or inactive" });
+    }
 
     const newAccessToken = generateAccessToken({
       userId: user._id,
@@ -160,14 +186,18 @@ const refresh = async (req, res) => {
 // ------------------- LOGOUT -------------------
 const logout = async (req, res) => {
   try {
-    if (req.user?.userId) {
-      const userKey = `user:${req.user.userId}`;
-      const cachedData = await getAllHash(userKey);
+    const rawToken = req.cookies["CK-REF-T"];
+    if (!rawToken) return res.status(401).json({ error: "No refresh token" });
 
+    const payload = verifyRefreshToken(rawToken);
+
+    if (payload?.userId) {
+      const userKey = `user:${payload.userId}`;
+      const cachedData = await getAllHash(userKey);
       // add cashed cart data into db
       if (cachedData.cart) {
         await Cart.findOneAndUpdate(
-          { user_id: req.user.userId },
+          { user_id: payload.userId },
           cachedData.cart,
           { upsert: true }
         );
@@ -177,10 +207,12 @@ const logout = async (req, res) => {
       await delKey(userKey);
 
       // clear refresh token
-      await User.updateOne(
-        { _id: req.user.userId, status: 1 },
-        { refresh_token: null }
-      );
+      const hashedToken = hashToken(req.cookies["CK-REF-T"]);
+
+      await UserSession.deleteOne({
+        user_id: payload.userId,
+        refresh_token: hashedToken,
+      });
     }
 
     res.clearCookie("CK-REF-T", {
@@ -267,7 +299,12 @@ const register = async (req, res) => {
 
 const getUserRedisData = async (req, res) => {
   try {
-    const userKey = `user:${req.user.userId}`;
+    const rawToken = req.cookies["CK-REF-T"];
+    if (!rawToken) return res.status(401).json({ error: "No refresh token" });
+
+    const payload = verifyRefreshToken(rawToken);
+
+    const userKey = `user:${payload.userId}`;
     const cachedData = await getAllHash(userKey);
 
     if (!cachedData || Object.keys(cachedData).length === 0) {

@@ -1,12 +1,10 @@
-import { useRef, useState, useEffect } from 'react';
-import {setAccessToken} from "@/lib/axios";
-import { useAppContext } from '@/context/AppContext';
-
+import { useRef, useState, useEffect } from "react";
+import { setAccessToken } from "@/lib/axios";
+import { useAppContext } from "@/context/AppContext";
 
 export default function OTPInput({ phone, onVerify }) {
-  const { login } = useAppContext();
-  const [otp, setOtp] = useState(Array(6).fill(''));
-  const [error, setError] = useState('');
+  const [otp, setOtp] = useState(Array(6).fill(""));
+  const [error, setError] = useState("");
   const inputs = useRef([]);
 
   const handleChange = (value, idx) => {
@@ -23,44 +21,43 @@ export default function OTPInput({ phone, onVerify }) {
   };
 
   const handleKeyDown = (e, idx) => {
-    if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
+    if (e.key === "Backspace" && !otp[idx] && idx > 0) {
       inputs.current[idx - 1].focus();
     }
   };
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData('text').trim();
+    const pasted = e.clipboardData.getData("text").trim();
     if (!/^\d{6}$/.test(pasted)) return;
 
-    const pastedArray = pasted.split('');
+    const pastedArray = pasted.split("");
     setOtp(pastedArray);
     inputs.current[5].focus();
   };
 
   const handleVerify = async (code) => {
-    const res = await fetch('/api/user/verifyOtp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch("/api/user/verifyOtp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone, otp: code }),
-      credentials: 'include',
+      credentials: "include",
     });
 
     const data = await res.json();
 
     if (res.ok && !data.error) {
-      setError('');
+      setError("");
       onVerify(data.newUser);
       setAccessToken(data.accessToken);
-      login(data.firstName);
     } else {
-      setError(data.error || 'Invalid OTP, please try again.');
+      setError(data.error || "Invalid OTP, please try again.");
     }
   };
 
   // Watch for complete OTP
   useEffect(() => {
-    const code = otp.join('');
+    const code = otp.join("");
     if (code.length === 6 && /^\d{6}$/.test(code)) {
       handleVerify(code);
     }

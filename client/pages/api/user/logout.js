@@ -1,24 +1,24 @@
-// pages/api/user/login.js
-import { forwardCookies } from '@/lib/forwardCookies';
+import { forwardCookies } from "@/lib/forwardCookies";
 
 export default async function handler(req, res) {
   try {
     const url = `${process.env.NODE_HOST}/api/user/logout`;
 
     const response = await fetch(url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: req.headers.authorization || ''
+        "Content-Type": "application/json",
+        Authorization: req.headers.authorization || "",
+        cookie: req.headers.cookie || "", // forward client cookies
       },
-      credentials: 'include'
     });
 
+    // Forward backend cookies to the client
     forwardCookies(response, res);
 
     const data = await response.json();
     return res.status(response.status).json(data);
   } catch (err) {
-    return res.status(500).json({ message: 'Proxy error', error: err.message });
+    return res.status(500).json({ message: "Proxy error", error: err.message });
   }
 }

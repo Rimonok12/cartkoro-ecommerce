@@ -312,16 +312,26 @@
 
 // // tiny runtime import to avoid React undefined in ContactForm
 // import * as React from 'react';
-import Head from 'next/head';
-import Link from 'next/link';
-import * as React from 'react';
-import emailjs from '@emailjs/browser';
+import Head from "next/head";
+import Link from "next/link";
+import * as React from "react";
+import emailjs from "@emailjs/browser";
+import { essentialsOnLoad } from "@/lib/ssrHelper";
+
+export async function getServerSideProps(context) {
+  const essentials = await essentialsOnLoad(context);
+  return {
+    props: {
+      ...essentials.props,
+    },
+  };
+}
 
 const SERVICE_ID =
-  process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || 'service_9rujgm8';
+  process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || "service_9rujgm8";
 const TEMPLATE_ID =
-  process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || 'cartkoro_contact_us';
-const PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || '';
+  process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || "cartkoro_contact_us";
+const PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || "";
 
 export default function ContactPage() {
   return (
@@ -455,33 +465,33 @@ function Row({ title, children }) {
 /* ---------- Contact form (EmailJS) ---------- */
 function ContactForm() {
   const [form, setForm] = React.useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: '',
-    orderId: '',
-    hp: '', // honeypot
+    name: "",
+    email: "",
+    subject: "",
+    message: "",
+    orderId: "",
+    hp: "", // honeypot
   });
   const [busy, setBusy] = React.useState(false);
-  const [ok, setOk] = React.useState('');
-  const [err, setErr] = React.useState('');
+  const [ok, setOk] = React.useState("");
+  const [err, setErr] = React.useState("");
 
   const onChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
   const submit = async (e) => {
     e.preventDefault();
-    setOk('');
-    setErr('');
+    setOk("");
+    setErr("");
 
     if (form.hp) return; // simple bot trap
     if (!form.name.trim() || !form.message.trim()) {
-      setErr('Please provide your name and a short message.');
+      setErr("Please provide your name and a short message.");
       return;
     }
     if (!PUBLIC_KEY) {
       setErr(
-        'Missing EmailJS public key. Add NEXT_PUBLIC_EMAILJS_PUBLIC_KEY in .env.local'
+        "Missing EmailJS public key. Add NEXT_PUBLIC_EMAILJS_PUBLIC_KEY in .env.local"
       );
       return;
     }
@@ -489,24 +499,24 @@ function ContactForm() {
     setBusy(true);
     try {
       const params = {
-        to_email: 'rimonon12@gmail.com',
+        to_email: "rimonon12@gmail.com",
 
         name: form.name.trim(),
-        email: (form.email || '').trim(), // shown inside the email body
-        reply_to: (form.email || '').trim() || '', // used by EmailJS "Reply To" field
+        email: (form.email || "").trim(), // shown inside the email body
+        reply_to: (form.email || "").trim() || "", // used by EmailJS "Reply To" field
 
-        subject: (form.subject || 'Contact').trim(),
-        orderId: (form.orderId || '').trim(),
+        subject: (form.subject || "Contact").trim(),
+        orderId: (form.orderId || "").trim(),
         message: form.message.trim(),
 
-        page_url: typeof window !== 'undefined' ? window.location.href : '',
-        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        page_url: typeof window !== "undefined" ? window.location.href : "",
+        user_agent: typeof navigator !== "undefined" ? navigator.userAgent : "",
         sent_at: new Date().toLocaleString(),
       };
 
       // optional: drop empty keys so EmailJS doesn't complain
       Object.keys(params).forEach(
-        (k) => (params[k] === '' || params[k] == null) && delete params[k]
+        (k) => (params[k] === "" || params[k] == null) && delete params[k]
       );
 
       const resp = await emailjs.send(SERVICE_ID, TEMPLATE_ID, params, {
@@ -514,20 +524,20 @@ function ContactForm() {
       });
 
       if (resp.status === 200) {
-        setOk('Thanks! Your message has been received. We’ll reply soon.');
+        setOk("Thanks! Your message has been received. We’ll reply soon.");
         setForm({
-          name: '',
-          email: '',
-          subject: '',
-          message: '',
-          orderId: '',
-          hp: '',
+          name: "",
+          email: "",
+          subject: "",
+          message: "",
+          orderId: "",
+          hp: "",
         });
       } else {
-        setErr('Could not submit. Please try again.');
+        setErr("Could not submit. Please try again.");
       }
     } catch (e2) {
-      setErr(e2?.text || e2?.message || 'Could not submit. Please try again.');
+      setErr(e2?.text || e2?.message || "Could not submit. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -618,11 +628,11 @@ function ContactForm() {
             disabled={busy}
             className={`rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-sm transition ${
               busy
-                ? 'bg-gray-400'
-                : 'bg-gray-900 hover:-translate-y-0.5 hover:bg-black'
+                ? "bg-gray-400"
+                : "bg-gray-900 hover:-translate-y-0.5 hover:bg-black"
             }`}
           >
-            {busy ? 'Sending…' : 'Send message'}
+            {busy ? "Sending…" : "Send message"}
           </button>
         </div>
       </form>

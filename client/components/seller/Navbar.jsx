@@ -2,9 +2,10 @@ import React from "react";
 import { assets } from "../../assets/assets";
 import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
+import { useRouter } from "next/router";
 
 const Navbar = () => {
-  const { router } = useAppContext();
+  const router = useRouter();
 
   return (
     <div className="flex items-center px-4 md:px-8 py-3 justify-between border-b">

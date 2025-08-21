@@ -1,16 +1,7 @@
 export default async function handler(req, res) {
   try {
-    const { categoryId } = req.query;
-    let url;
-    if (categoryId) {
-      url = `${
-        process.env.NODE_HOST
-      }/api/product/getAllProducts?categoryId=${encodeURIComponent(
-        categoryId
-      )}`;
-    } else {
-      url = `${process.env.NODE_HOST}/api/product/getAllProducts`;
-    }
+    const { skuId } = req.query;
+    let url = `${process.env.NODE_HOST}/api/product/getProductBySkuId/${skuId}`;
 
     const response = await fetch(url, {
       method: "GET",

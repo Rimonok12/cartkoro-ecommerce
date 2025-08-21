@@ -22,6 +22,30 @@
 import Navbar from "@/components/seller/Navbar";
 import Sidebar from "@/components/seller/Sidebar";
 import React from "react";
+import { useAppContext } from "@/context/AppContext";
+import { essentialsOnLoad } from "@/lib/ssrHelper";
+
+export async function getServerSideProps(context) {
+  const essentials = await essentialsOnLoad(context);
+  // if no user data → send them home (or login page)
+  if (!essentials.props.initialUserData) {
+    return {
+      redirect: { destination: "/", permanent: false },
+    };
+  }
+
+  // check admin flag
+  if (essentials.props.initialUserData.is_admin === false) {
+    return {
+      redirect: { destination: "/", permanent: false },
+    };
+  }
+  return {
+    props: {
+      ...essentials.props,
+    },
+  };
+}
 
 const Layout = ({ children }) => {
   return (
@@ -47,4 +71,3 @@ const Layout = ({ children }) => {
 };
 
 export default Layout;
-
