@@ -1,9 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const {getDivisions, getDistrictsByDivision, getUpazilasByDistrict} = require('../controllers/generalController');
+const {getDistrictsWithUpazilas} = require('../controllers/generalController');
 
-router.get('/divisions', getDivisions);
-router.get('/districts/:divisionId', getDistrictsByDivision);
-router.get('/upazilas/:districtId', getUpazilasByDistrict);
+router.get('/getDistrictsWithUpazilas', getDistrictsWithUpazilas);
 
 module.exports = router;

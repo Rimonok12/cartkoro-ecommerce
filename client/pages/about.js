@@ -6,6 +6,8 @@ export default function AboutPage() {
   return (
     <>
       <Head>
+
+        {/* <h1> hello Rimon-shachi</h1> */}
         <title>About Us — CartKoro</title>
         <meta
           name="description"
