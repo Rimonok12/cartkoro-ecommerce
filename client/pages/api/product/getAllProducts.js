@@ -11,7 +11,6 @@ export default async function handler(req, res) {
     } else {
       url = `${process.env.NODE_HOST}/api/product/getAllProducts`;
     }
-
     const response = await fetch(url, {
       method: "GET",
       headers: { "Content-Type": "application/json" },

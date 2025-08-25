@@ -33,16 +33,17 @@ const addressSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  label: String,
-  address_line1: String,
-  address_line2: String,
-  upazila_id: { type: mongoose.Schema.Types.ObjectId, ref: "Upazila" },
-  pincode: String,
-  phone: String,
-  is_default_shipping: { type: Boolean, default: false },
-  is_default_billing: { type: Boolean, default: false },
-  status: Number,
-});
+  label: { type: String, enum: ["Home", "Work", "Other"], default: "Home" },
+  full_name: { type: String, required: true },
+  phone: { type: String, required: true },
+  address: { type: String, required: true }, // House, Road, Area
+  district_id: { type: mongoose.Schema.Types.ObjectId, ref: "District", required: true },
+  upazila_id: { type: mongoose.Schema.Types.ObjectId, ref: "Upazila", required: true },
+  postcode: { type: String, required: true },
+  landmark: { type: String }, 
+  alternate_phone: { type: String },
+  status:  { type: String, default: 1  },
+}, { timestamps: true });
 
 const customerOtpSchema = new mongoose.Schema(
   {
