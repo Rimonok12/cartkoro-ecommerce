@@ -1,12 +1,16 @@
 // controllers/addressController.js
-const Address = require("../models/address");
-const { District, Upazila, Postcode } = require("../models/location");
+const {
+  District, Upazila
+} = require("../models/generalModels");
+const {
+  UserAddress
+} = require("../models/userModels");
 
 // ➡️ Add address
 const addAddress = async (req, res) => {
   try {
+    const user_id=req.user.userId;
     const {
-      user_id,
       label,
       full_name,
       phone,
@@ -27,10 +31,10 @@ const addAddress = async (req, res) => {
     if (!upazila) return res.status(400).json({ error: "Invalid upazila for this district" });
 
     // validate postcode
-    const postcodeExists = await Postcode.findOne({ upazila_id, postcode, status: true });
-    if (!postcodeExists) return res.status(400).json({ error: "Invalid postcode for this upazila" });
+    // const postcodeExists = await Postcode.findOne({ upazila_id, postcode, status: true });
+    // if (!postcodeExists) return res.status(400).json({ error: "Invalid postcode for this upazila" });
 
-    const newAddress = new Address({
+    const newAddress = new UserAddress({
       user_id,
       label,
       full_name,
@@ -52,5 +56,78 @@ const addAddress = async (req, res) => {
 };
 
 
+// ➡️ Get all addresses of user
+const getAddresses = async (req, res) => {
+  try {
+    const user_id = req.user.userId;
 
-module.exports={addAddress}
+    const addresses = await UserAddress.find({ user_id })
+      .populate("district_id", "name")   // populate district name
+      .populate("upazila_id", "name");   // populate upazila name
+
+    if (!addresses || addresses.length === 0) {
+      return res.status(200).json({ addresses:[] });
+    }
+
+    res.json({ addresses });
+  } catch (error) {
+    console.error("Get Addresses Error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ➡️ Edit address
+const editAddress = async (req, res) => {
+  try {
+    const user_id = req.user.userId;
+    const { addressId } = req.params;
+
+    const updated = await UserAddress.findOneAndUpdate(
+      { _id: addressId, user_id, status: "1" }, // only active
+      { $set: req.body },
+      { new: true }
+    )
+      .populate("district_id", "name")
+      .populate("upazila_id", "name");
+
+    if (!updated) {
+      return res.status(404).json({ error: "Address not found or inactive" });
+    }
+
+    res.json({ message: "Address updated successfully", address: updated });
+  } catch (error) {
+    console.error("Edit Address Error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ➡️ Delete address (soft delete: status = 0)
+const deleteAddress = async (req, res) => {
+  try {
+    const user_id = req.user.userId;
+    const { addressId } = req.params;
+
+    const deleted = await UserAddress.findOneAndUpdate(
+      { _id: addressId, user_id, status: "1" }, // only active
+      { $set: { status: "0" } },
+      { new: true }
+    );
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Address not found or already deleted" });
+    }
+
+    res.json({ message: "Address deleted successfully" });
+  } catch (error) {
+    console.error("Delete Address Error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+module.exports = {
+  addAddress,
+  getAddresses,
+  editAddress,
+  deleteAddress,
+};

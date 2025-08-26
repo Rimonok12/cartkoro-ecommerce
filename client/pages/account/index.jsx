@@ -5,12 +5,21 @@ import { useAppContext } from "@/context/AppContext";
 import { essentialsOnLoad } from "@/lib/ssrHelper";
 
 // SSR guard
-export async function getServerSideProps({ req }) {
-  const c = req.cookies || {};
-  if (!c["CK-REF-T"]) {
-    return { redirect: { destination: "/login", permanent: false } };
+export async function getServerSideProps(context) {
+  const { req } = context;
+  const cookies = req.cookies || {};
+
+  if (!cookies["CK-REF-T"]) {
+    return {
+      redirect: {
+        destination: "/login",
+        permanent: false,
+      },
+    };
   }
+
   const essentials = await essentialsOnLoad(context);
+
   return {
     props: {
       ...essentials.props,
@@ -37,17 +46,38 @@ export default function SettingsPage() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
+  // Load profile data on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const { data } = await api.get("/profile/details", {
+          withCredentials: true,
+        });
+        setFullName(data?.full_name || "");
+        setEmail(data?.email || "");
+        setPhone(data?.phone || "");
+      } catch (e) {
+        setErr("Failed to load profile details");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
   const saveProfile = async () => {
     try {
       setSaving(true);
       setErr("");
       setMsg("");
+
       await api.put(
         "/profile/update",
         { full_name: fullName, email },
         { withCredentials: true }
       );
-      setMsg("Profile updated");
+
+      setMsg("Profile updated successfully");
       if (fullName) login(fullName.split(" ")[0]);
     } catch (e) {
       setErr(e?.response?.data?.error || "Failed to save profile");
@@ -70,12 +100,14 @@ export default function SettingsPage() {
       setPwSaving(true);
       setErr("");
       setMsg("");
+
       await api.post(
         "/profile/change-password",
         { currentPassword, newPassword },
         { withCredentials: true }
       );
-      setMsg("Password updated");
+
+      setMsg("Password updated successfully");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -210,3 +242,17 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+
+// import { useEffect } from "react";
+// import { useRouter } from "next/router";
+
+// export default function SettingIndex() {
+//   const router = useRouter();
+
+//   useEffect(() => {
+//     router.replace("/account/profile");
+//   }, [router]);
+
+//   return null;
+// }

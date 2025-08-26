@@ -29,8 +29,7 @@ import { useState } from "react";
 const COUNTRY_CODES = [
   { code: "+880", label: "BD (+880)" },
   { code: "+91", label: "India (+91)" },
-  { code: "+1", label: "United States (+1)" },
-  { code: "+44", label: "United Kingdom (+44)" },
+
 ];
 
 export default function PhoneLogin({ onContinue, defaultCode = "+880" }) {

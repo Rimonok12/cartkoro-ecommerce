@@ -24,7 +24,6 @@ export const AppContextProvider = ({
     setUserData({});
     setCartData({ items: [] });
     setCashbackData({});
-    console.log("all crearrrr");
   };
 
   // Inject logoutContext into Axios once

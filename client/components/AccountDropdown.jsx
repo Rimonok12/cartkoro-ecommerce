@@ -372,7 +372,7 @@ export default function AccountDropdown() {
           <div className="h-1 w-full bg-gradient-to-r from-orange-600 via-orange-500 to-amber-400" />
 
           <div className="py-2">
-            <Item href="/account/settings">
+            <Item href="/account/profile">
               <svg
                 className="h-5 w-5 text-gray-500"
                 viewBox="0 0 24 24"
