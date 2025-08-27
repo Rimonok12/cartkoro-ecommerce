@@ -7,6 +7,8 @@ const {
   logout,
   register,
   getUserRedisData,
+  getProfileData,
+  updateProfileData
 } = require("../controllers/userController");
 const { updateCart } = require("../controllers/cartController");
 const {
@@ -30,6 +32,10 @@ router.post("/updateCart", auth, updateCart);
 router.post("/addAddress", auth, addAddress);
 router.post("/getAddresses", auth, getAddresses);
 router.put("/editAddress/:addressId", auth, editAddress);
-router.delete("/deleteAddress/:addressId", auth, deleteAddress);
+router.put("/deleteAddress/:addressId", auth, deleteAddress);
+
+router.post("/getProfileData", auth, getProfileData);
+router.put("/updateProfileData", auth, updateProfileData);
+
 
 module.exports = router;

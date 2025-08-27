@@ -2,7 +2,7 @@ import { forwardCookies } from "@/lib/forwardCookies";
 
 export default async function handler(req, res) {
   try {
-    const url = `${process.env.NODE_HOST}/api/user/getAddresses`;
+    const url = `${process.env.NODE_HOST}/api/user/getProfileData`;
     const response = await fetch(url, {
       method: "POST",
       headers: {

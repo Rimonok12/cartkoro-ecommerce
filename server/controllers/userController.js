@@ -317,6 +317,51 @@ const getUserRedisData = async (req, res) => {
   }
 };
 
+const getProfileData = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const user = await User.findOne({ _id: userId, status: 1 })
+      .select('full_name phone_number email')
+      .lean();
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    return res.status(200).json({
+      full_name: user.full_name,
+      phone: user.phone_number,
+      email: user.email,
+    });
+
+  } catch (err) {
+    console.error("getProfileData error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+const updateProfileData = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { full_name, email } = req.body || {};
+    const nameStr = String(full_name || '').trim();
+    const emailStr = String(email || '').trim().toLowerCase();
+
+    await User.findOneAndUpdate(
+      { _id: userId, status: 1 },
+      { $set: { full_name: nameStr, email: emailStr } },
+      { new: true, runValidators: true }
+    )
+
+    return res.status(200).json({
+      message: 'Profile updated successfully',
+    });
+  } catch (err) {
+    console.error('updateProfileData error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+};
+
+
 module.exports = {
   generateOtp,
   verifyOtp,
@@ -324,4 +369,6 @@ module.exports = {
   logout,
   register,
   getUserRedisData,
+  getProfileData,
+  updateProfileData
 };

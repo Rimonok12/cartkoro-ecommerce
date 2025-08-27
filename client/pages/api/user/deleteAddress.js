@@ -3,8 +3,10 @@ import { forwardCookies } from "@/lib/forwardCookies";
 export default async function handler(req, res) {
   try {
     const url = `${process.env.NODE_HOST}/api/user/deleteAddress/${req.query.addressId}`;
+        console.log("req.query.addressId url::::", url)
+
     const response = await fetch(url, {
-      method: "DELETE",
+      method: "PUT",
       headers: {
         "Content-Type": "application/json",
         Authorization: req.headers.authorization || "",

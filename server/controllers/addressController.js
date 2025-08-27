@@ -21,6 +21,7 @@ const addAddress = async (req, res) => {
       landmark,
       alternate_phone,
     } = req.body;
+    console.log("addadress req.body::", user_id, req.body)
 
     // validate district
     const district = await District.findOne({ _id: district_id, status: true });
@@ -61,7 +62,7 @@ const getAddresses = async (req, res) => {
   try {
     const user_id = req.user.userId;
 
-    const addresses = await UserAddress.find({ user_id })
+    const addresses = await UserAddress.find({ user_id, status: "1" })
       .populate("district_id", "name")   // populate district name
       .populate("upazila_id", "name");   // populate upazila name
 
@@ -81,6 +82,9 @@ const editAddress = async (req, res) => {
   try {
     const user_id = req.user.userId;
     const { addressId } = req.params;
+
+    console.log("editAddress req.body::", user_id, addressId, req.body)
+
 
     const updated = await UserAddress.findOneAndUpdate(
       { _id: addressId, user_id, status: "1" }, // only active
