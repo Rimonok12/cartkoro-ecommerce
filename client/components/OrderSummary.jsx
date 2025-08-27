@@ -1,83 +1,33 @@
-// "use client";
-// import React, { useEffect, useState } from "react";
-// import { useAppContext } from "@/context/AppContext";
-
-// export default function OrderSummary({ items: itemsOverride }) {
-//   const { currency, cartData, getCartCount } = useAppContext();
-//   const [selectedAddress, setSelectedAddress] = useState(null);
-
-//   const items = itemsOverride ?? cartData?.items ?? [];
-
-//   const subtotal = items.reduce(
-//     (sum, it) => sum + (Number(it.sp ?? it.price) || 0) * (Number(it.quantity) || 0),
-//     0
-//   );
-//   const tax = Math.floor(subtotal * 0.02);
-//   const total = subtotal + tax;
-
-//   return (
-//     <aside className="w-full md:w-[380px] rounded-2xl bg-slate-50/80 ring-1 ring-black/5 p-5">
-//       <h2 className="text-2xl font-semibold text-slate-800">Order Summary</h2>
-//       <hr className="my-4 border-slate-200" />
-
-//       {/* address + promo can stay as you had */}
-
-//       <div className="mt-4 space-y-2 text-slate-700">
-//         <div className="flex justify-between">
-//           <span>ITEMS</span>
-//           <span>{items.reduce((n, it) => n + (Number(it.quantity) || 0), 0)}</span>
-//         </div>
-//         <div className="flex justify-between">
-//           <span>Subtotal</span>
-//           <span>
-//             {currency} {subtotal.toFixed(2)}
-//           </span>
-//         </div>
-//         <div className="flex justify-between">
-//           <span>Shipping Fee</span>
-//           <span className="text-emerald-600">Free</span>
-//         </div>
-//         <div className="flex justify-between">
-//           <span>Tax (2%)</span>
-//           <span>
-//             {currency} {tax.toFixed(2)}
-//           </span>
-//         </div>
-
-//         <div className="my-2 h-px bg-slate-200" />
-
-//         <div className="flex justify-between text-lg font-semibold text-slate-900">
-//           <span>Total</span>
-//           <span>
-//             {currency} {total.toFixed(2)}
-//           </span>
-//         </div>
-//       </div>
-
-//       <button className="mt-5 w-full rounded-xl bg-orange-600 py-3 text-white hover:bg-orange-700">
-//         Place Order
-//       </button>
-//     </aside>
-//   );
-// }
-
-
-/////////////////
-
-import { addressDummyData } from "@/assets/assets";
 import { useAppContext } from "@/context/AppContext";
 import React, { useEffect, useState } from "react";
+import api from "@/lib/axios";
+
+function toNumber(val, fallback = 0) {
+  // supports number or { amount: number } or stringy numbers
+  if (val == null) return fallback;
+  if (typeof val === "number" && Number.isFinite(val)) return val;
+  if (typeof val === "object" && val?.amount != null) {
+    const n = Number(val.amount);
+    return Number.isFinite(n) ? n : fallback;
+  }
+  const n = Number(val);
+  return Number.isFinite(n) ? n : fallback;
+}
 
 const OrderSummary = () => {
-  const { currency, cartData, getCartCount } = useAppContext();
+  const { currency, cartData, getCartCount, cashbackData } = useAppContext();
 
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userAddresses, setUserAddresses] = useState([]);
 
   const fetchUserAddresses = async () => {
-    // later replace with API call
-    setUserAddresses(addressDummyData);
+    try {
+      const res = await api.post("/user/getAddresses", {}, { withCredentials: true });
+      setUserAddresses(res?.data?.addresses || []);
+    } catch (e) {
+      console.error("Error fetching addresses", e);
+    }
   };
 
   const handleAddressSelect = (address) => {
@@ -90,11 +40,6 @@ const OrderSummary = () => {
       alert("Please select a delivery address before placing order.");
       return;
     }
-    console.log("Order Created ✅", {
-      itemsCount: getCartCount(),
-      totalAmount: total,
-      address: selectedAddress,
-    });
     // TODO: API call to create order
   };
 
@@ -102,19 +47,22 @@ const OrderSummary = () => {
     fetchUserAddresses();
   }, []);
 
-  // --- Calculate amounts directly from cartData ---
-  const subtotal = cartData?.items?.reduce(
-    (sum, item) => sum + (item.sp || 0) * (item.quantity || 0),
-    0
-  ) || 0;
+  // --- Calculate amounts safely from cartData ---
+  const items = Array.isArray(cartData?.items) ? cartData.items : [];
+
+  const subtotal = items.reduce((sum, item) => {
+    const price = toNumber(item?.sp ?? item?.price ?? item?.SP ?? item?.selling_price, 0);
+    const qty = toNumber(item?.quantity, 0);
+    return sum + price * qty;
+  }, 0);
+
   const tax = Math.floor(subtotal * 0.02);
-  const total = subtotal + tax;
+  const cashback = toNumber(cashbackData, 0); // supports number or {amount}
+  const total = subtotal + tax - cashback;
 
   return (
     <div className="w-full md:w-96 bg-gray-500/5 p-5">
-      <h2 className="text-xl md:text-2xl font-medium text-gray-700">
-        Order Summary
-      </h2>
+      <h2 className="text-xl md:text-2xl font-medium text-gray-700">Order Summary</h2>
       <hr className="border-gray-500/30 my-5" />
 
       <div className="space-y-6">
@@ -130,7 +78,7 @@ const OrderSummary = () => {
             >
               <span>
                 {selectedAddress
-                  ? `${selectedAddress.fullName}, ${selectedAddress.area}, ${selectedAddress.city}, ${selectedAddress.state}`
+                  ? `${selectedAddress.full_name}, ${selectedAddress.address}, ${selectedAddress.upazila_id?.name ?? ""}, ${selectedAddress.district_id?.name ?? ""}`
                   : "Select Address"}
               </span>
               <svg
@@ -142,12 +90,7 @@ const OrderSummary = () => {
                 viewBox="0 0 24 24"
                 stroke="#6B7280"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M19 9l-7 7-7-7"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
@@ -159,12 +102,12 @@ const OrderSummary = () => {
                     className="px-4 py-2 hover:bg-gray-500/10 cursor-pointer"
                     onClick={() => handleAddressSelect(address)}
                   >
-                    {address.fullName}, {address.area}, {address.city},{" "}
-                    {address.state}
+                    {address.full_name}, {address.address}, {address.upazila_id?.name ?? ""},{" "}
+                    {address.district_id?.name ?? ""}
                   </li>
                 ))}
                 <li
-                  onClick={() => (window.location.href = "/add-address")}
+                  onClick={() => (window.location.href = "/account/address?add-address=true")}
                   className="px-4 py-2 hover:bg-gray-500/10 cursor-pointer text-center"
                 >
                   + Add New Address
@@ -174,21 +117,13 @@ const OrderSummary = () => {
           </div>
         </div>
 
-        {/* Promo Code */}
+        <hr className="border-gray-500/30 my-5" />
+
+        {/* Payment Type */}
         <div>
           <label className="text-base font-medium uppercase text-gray-600 block mb-2">
-            Promo Code
+            Payment Type :<span className="text-orange-600"> Cash On Delivery</span>
           </label>
-          <div className="flex flex-col items-start gap-3">
-            <input
-              type="text"
-              placeholder="Enter promo code"
-              className="flex-grow w-full outline-none p-2.5 text-gray-600 border"
-            />
-            <button className="bg-orange-600 text-white px-9 py-2 hover:bg-orange-700">
-              Apply
-            </button>
-          </div>
         </div>
 
         <hr className="border-gray-500/30 my-5" />
@@ -196,25 +131,34 @@ const OrderSummary = () => {
         {/* Summary */}
         <div className="space-y-4">
           <div className="flex justify-between text-base font-medium">
-            <p className="uppercase text-gray-600">Items {getCartCount()}</p>
+            <p className="uppercase bold text-gray-600">Price Details ({getCartCount()} item(s))</p>
+          </div>
+          <div className="flex justify-between text-base font-medium">
+            <p className="text-gray-600">Total MRP</p>
             <p className="text-gray-800">
-              {currency} {subtotal}
+              {currency} {subtotal.toFixed(2)}
+            </p>
+          </div>
+          <div className="flex justify-between text-base font-medium">
+            <p className="text-gray-600">MRP Discount</p>
+            <p className="text-gray-800">
+              {currency} {subtotal.toFixed(2)}
+            </p>
+          </div>
+          <div className="flex justify-between">
+            <p className="text-gray-600">Cashback</p>
+            <p className="font-medium text-gray-800">
+              - {currency} {cashback.toFixed(2)}
             </p>
           </div>
           <div className="flex justify-between">
             <p className="text-gray-600">Shipping Fee</p>
             <p className="font-medium text-gray-800">Free</p>
           </div>
-          <div className="flex justify-between">
-            <p className="text-gray-600">Tax (2%)</p>
-            <p className="font-medium text-gray-800">
-              {currency} {tax}
-            </p>
-          </div>
           <div className="flex justify-between text-lg md:text-xl font-medium border-t pt-3">
             <p>Total</p>
             <p>
-              {currency} {total}
+              {currency} {total.toFixed(2)}
             </p>
           </div>
         </div>
