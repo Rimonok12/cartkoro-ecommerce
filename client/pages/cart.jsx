@@ -376,7 +376,7 @@ export default function Cart() {
           )}
 
           <button
-            onClick={() => (window.location.href = '/all-products')}
+            onClick={() => (window.location.href = '/')}
             className="group mt-6 inline-flex items-center gap-2 text-orange-600"
           >
             <Image
