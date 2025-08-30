@@ -1,7 +1,7 @@
 // pages/login.js
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/router";
 import Image from "next/image";
 import PhoneLogin from "@/components/auth/PhoneLogin";
@@ -9,7 +9,6 @@ import OTPInput from "@/components/auth/OTPInput";
 import NewUserForm from "@/components/auth/NewUserForm";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import api from "@/lib/axios";
 
 export async function getServerSideProps(context) {
   const { req, query } = context;
@@ -26,8 +25,6 @@ export async function getServerSideProps(context) {
   return { props: {} };
 }
 
-const INTENT_KEY = "lastitemtoaddtocart";
-
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState("phone"); // "phone" | "otp" | "newUser"
@@ -36,69 +33,12 @@ export default function LoginPage() {
 
   const redirectParam =
     typeof router.query.redirect === "string" ? router.query.redirect : "";
-  const redirectTarget = redirectParam ? `/${redirectParam.replace(/^\/+/, "")}` : "/";
-
-  // Clear stale intent safely:
-  useEffect(() => {
-    if (!router.isReady) return;
-
-    // If not cart flow, wipe immediately
-    if (redirectParam !== "cart") {
-      try { localStorage.removeItem(INTENT_KEY); } catch {}
-    }
-
-    const handleRouteStart = () => {
-      try { localStorage.removeItem(INTENT_KEY); } catch {}
-    };
-    const handleBeforeUnload = () => {
-      try { localStorage.removeItem(INTENT_KEY); } catch {}
-    };
-
-    router.events.on("routeChangeStart", handleRouteStart);
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      router.events.off("routeChangeStart", handleRouteStart);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      try { localStorage.removeItem(INTENT_KEY); } catch {}
-    };
-  }, [router.isReady, router.events, redirectParam]);
-
-  // Add the LAST pending item immediately after OTP verifies:
-  // - Only when redirect=cart
-  // - Only when INTENT_KEY has source: "product"
-  // - Rely on server-side merge in /user/updateCart
-  const addLastItemToCart = async () => {
-    if (redirectParam !== "cart") return;
-
-    try {
-      const raw = localStorage.getItem(INTENT_KEY);
-      if (!raw) return;
-
-      const { sku_id, quantity, source } = JSON.parse(raw) || {};
-      if (!sku_id || source !== "product") {
-        localStorage.removeItem(INTENT_KEY);
-        return;
-      }
-
-      await api.post(
-        "/user/updateCart",
-        {
-          items: [{ sku_id, quantity: quantity || 1 }],
-          merge: true, // <-- server will merge with existing cart
-        },
-        { withCredentials: true }
-      );
-
-      localStorage.removeItem(INTENT_KEY);
-    } catch (e) {
-      console.error("Add-to-cart after OTP (server-merge) failed:", e);
-      try { localStorage.removeItem(INTENT_KEY); } catch {}
-    }
-  };
+  const redirectTarget =
+    redirectParam ? `/${redirectParam.replace(/^\/+/, "")}` : "/";
 
   const handleCompletedRegistration = async () => {
-    window.location.href = redirectTarget; // force SSR
+    // Force full reload so SSR picks up new cookies/session
+    window.location.href = redirectTarget;
   };
 
   return (
@@ -106,13 +46,16 @@ export default function LoginPage() {
       <Navbar />
 
       <div className="login-page min-h-screen relative flex items-center justify-center px-4 overflow-hidden">
+        {/* Animated background layers */}
         <div aria-hidden className="mesh z-0" />
         <div aria-hidden className="orb o1 z-0" />
         <div aria-hidden className="orb o2 z-0" />
         <div aria-hidden className="orb o3 z-0" />
         <div aria-hidden className="sparks z-0" />
 
+        {/* Auth card */}
         <div className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow overflow-hidden ring-1 ring-black/5">
+          {/* Banner on top */}
           <div className="relative w-full h-28 md:h-32">
             <Image
               src="/banner.png"
@@ -143,15 +86,12 @@ export default function LoginPage() {
                 <OTPInput
                   phone={phone}
                   countryCode={countryCode}
-                  onVerify={async (isNew) => {
-                    // 1) Immediately add last item once OTP is confirmed (server merges)
-                    await addLastItemToCart();
-
-                    // 2) Finish login flow
+                  onVerify={(isNew) => {
                     if (isNew) {
                       setStep("newUser");
                     } else {
-                      window.location.href = redirectTarget; // force SSR
+                      // existing user → redirect
+                      window.location.href = redirectTarget;
                     }
                   }}
                 />
@@ -164,6 +104,7 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {/* Page-scoped CSS for the animated background */}
         <style jsx>{`
           .login-page { background: #f6f7fb; }
           .mesh, .orb, .sparks { position: absolute; inset: 0; pointer-events: none; }

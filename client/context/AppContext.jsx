@@ -1,3 +1,4 @@
+// context/AppContext.jsx
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
@@ -14,9 +15,15 @@ export const AppContextProvider = ({
 }) => {
   const currency = process.env.NEXT_PUBLIC_CURRENCY;
 
+  // 🔹 Parse cart if it arrived as JSON string from SSR
+  const parsedInitialCart =
+    typeof initialCartData === "string"
+      ? (() => { try { return JSON.parse(initialCartData); } catch { return { items: [] }; } })()
+      : (initialCartData || { items: [] });
+
   // ---------- User State ----------
   const [userData, setUserData] = useState(initialUserData);
-  const [cartData, setCartData] = useState(initialCartData || { items: [] });
+  const [cartData, setCartData] = useState(parsedInitialCart);
   const [cashbackData, setCashbackData] = useState(initialCashbackData);
 
   // ---------- Logout ----------
@@ -39,36 +46,33 @@ export const AppContextProvider = ({
     if (index >= 0) {
       updated.items[index] = {
         ...updated.items[index],
-        quantity: updated.items[index].quantity + qty,
+        quantity: (Number(updated.items[index].quantity) || 0) + (Number(qty) || 1),
       };
     } else {
-      updated.items.push({ sku_id: itemId, quantity: qty });
+      updated.items.push({ sku_id: itemId, quantity: Number(qty) || 1 });
     }
 
     setCartData(updated);
   };
 
   const updateCartQuantity = (itemId, quantity) => {
-    const updated = { ...cartData, items: [...cartData.items] };
+    const updated = { ...cartData, items: [...(cartData.items || [])] };
     const index = updated.items.findIndex((item) => item.sku_id === itemId);
 
     if (index >= 0) {
-      if (quantity <= 0) {
+      const q = Number(quantity) || 0;
+      if (q <= 0) {
         updated.items.splice(index, 1);
       } else {
-        updated.items[index] = { ...updated.items[index], quantity };
+        updated.items[index] = { ...updated.items[index], quantity: q };
       }
     }
 
     setCartData(updated);
   };
 
-  const getCartCount = () => {
-    if (!cartData?.items) return 0;
-    return cartData.items.length;
-  };
+  const getCartCount = () => Array.isArray(cartData?.items) ? cartData.items.length : 0;
 
-  // ---------- Context Value ----------
   const value = {
     // User
     userData,

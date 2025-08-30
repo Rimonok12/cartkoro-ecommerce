@@ -66,7 +66,7 @@ async function fetchSkuViaHandler(id) {
   }
 }
 
-/** debounce helper */
+/** debounce helper (kept in case you want to debounce other actions later) */
 function useDebouncedCallback(cb, delay = 400) {
   const t = useRef(null);
   return (...args) => {
@@ -81,28 +81,24 @@ export default function Cart() {
   const items = useMemo(() => cartData?.items || [], [cartData?.items]);
   const [enriched, setEnriched] = useState({}); // sku_id -> { name, sp, mrp, thumbnailImg }
 
-  // --- server sync: send the FULL items array (sku_id, quantity) ---
-  const actuallySyncCart = async (itemsToSync) => {
+  // 🔹 Sync to server ONLY after user-initiated changes (replace on server)
+  const syncNow = async (nextItems) => {
     try {
       await api.post(
         "/user/updateCart",
-        { items: itemsToSync.map(({ sku_id, quantity }) => ({ sku_id, quantity })) },
+        {
+          items: nextItems.map(({ sku_id, quantity }) => ({
+            sku_id,
+            quantity: Number(quantity) || 1,
+          })),
+          merge: false,
+        },
         { withCredentials: true }
       );
     } catch (e) {
-      console.error("Error updating cart:", e);
+      console.error("Cart sync failed:", e?.message || e);
     }
   };
-  const debouncedSync = useDebouncedCallback(actuallySyncCart, 450);
-
-  // whenever items change, debounce-sync to server
-  useEffect(() => {
-    if (!items.length) {
-      debouncedSync([]);
-      return;
-    }
-    debouncedSync(items);
-  }, [items.map(i => `${i.sku_id}:${i.quantity}`).join('|')]);
 
   // Enrich rows that don’t already carry details
   useEffect(() => {
@@ -156,16 +152,29 @@ export default function Cart() {
     return Math.round(((mrp - sp) / mrp) * 100);
   };
 
-  // --- UI handlers
-  const setQty = (sku_id, quantity) => {
+  // --- UI handlers (update context, then persist to server)
+  const setQty = async (sku_id, quantity) => {
     let q = parseInt(quantity, 10);
     if (isNaN(q) || q < 1) q = 1;
+
+    // update local
     updateCartQuantity(sku_id, q);
+
+    // compute next items & sync
+    const next = items.map(it =>
+      it.sku_id === sku_id ? { ...it, quantity: q } : it
+    );
+    await syncNow(next);
   };
 
   const inc = (sku_id, cur) => setQty(sku_id, (Number(cur) || 1) + 1);
   const dec = (sku_id, cur) => setQty(sku_id, Math.max(1, (Number(cur) || 1) - 1));
-  const remove = (sku_id) => updateCartQuantity(sku_id, 0);
+
+  const remove = async (sku_id) => {
+    updateCartQuantity(sku_id, 0);
+    const next = items.filter(it => it.sku_id !== sku_id);
+    await syncNow(next);
+  };
 
   return (
     <>
@@ -187,27 +196,27 @@ export default function Cart() {
             <div className="text-center py-20 text-gray-500">Your cart is empty 🛒</div>
           ) : (
             <>
-              {/* 🔹 Mobile: cards list (vertical price block) */}
-              <div className="md:hidden max-h-[62vh] overflow-y-auto pr-1 space-y-3">
+              {/* 🔹 Cards list (use on all breakpoints) */}
+              <div className="max-h-[62vh] md:max-h-none overflow-y-auto md:overflow-visible pr-1 space-y-3 md:space-y-4 md:max-w-3xl">
                 {rows.map((item) => (
-                  <div key={item.sku_id} className="rounded-2xl ring-1 ring-black/5 bg-white p-3">
-                    <div className="flex gap-3">
+                  <div key={item.sku_id} className="rounded-2xl ring-1 ring-black/5 bg-white p-3 md:p-4">
+                    <div className="flex gap-3 md:gap-4">
                       <div className="shrink-0 rounded-lg overflow-hidden bg-slate-100 p-2">
                         {item.thumbnailImg ? (
                           <Image
                             src={item.thumbnailImg}
                             alt={item.name}
-                            width={64}
-                            height={64}
-                            className="h-16 w-16 object-cover"
+                            width={80}
+                            height={80}
+                            className="h-20 w-20 md:h-24 md:w-24 object-cover"
                           />
                         ) : (
-                          <div className="h-16 w-16 rounded bg-gray-100 border border-gray-200" />
+                          <div className="h-20 w-20 md:h-24 md:w-24 rounded bg-gray-100 border border-gray-200" />
                         )}
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-slate-900 truncate">{item.name}</p>
+                        <p className="font-medium text-slate-900 truncate md:text-base">{item.name}</p>
 
                         {/* vertical price block */}
                         <div className="mt-1 flex flex-col">
@@ -217,26 +226,30 @@ export default function Cart() {
                             </span>
                           )}
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-900 font-semibold">
+                            <span className="text-gray-900 font-semibold md:text-lg">
                               {currency} {item.sp.toFixed(2)}
                             </span>
                             {item.mrp > item.sp && (
-                              <span className="rounded bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                              <span className="rounded bg-green-50 px-2 py-0.5 text-[11px] md:text-xs font-semibold text-green-700">
                                 {percentOff(item.mrp, item.sp)}% off
                               </span>
                             )}
                           </div>
+                          {/* 🔹 Subtotal moved here */}
+                          <div className="mt-1 text-sm md:text-base text-slate-900 font-medium">
+                            Subtotal: {currency} {(item.sp * item.quantity).toFixed(2)}
+                          </div>
                         </div>
 
                         {/* qty controls */}
-                        <div className="mt-3 flex items-center gap-2">
+                        <div className="mt-3 flex items-center gap-2 md:gap-3">
                           <button
                             onClick={() => dec(item.sku_id, item.quantity)}
                             disabled={item.quantity <= 1}
-                            className="h-8 w-8 flex items-center justify-center rounded border border-slate-300"
+                            className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center rounded border border-slate-300"
                             title="Decrease"
                           >
-                            <Image src={assets.decrease_arrow} alt="-" className="h-4 w-4" />
+                            <Image src={assets.decrease_arrow} alt="-" className="h-4 w-4 md:h-5 md:w-5" />
                           </button>
 
                           <input
@@ -248,129 +261,29 @@ export default function Cart() {
                               if (isNaN(val) || val < 1) val = 1;
                               setQty(item.sku_id, val);
                             }}
-                            className="h-8 w-12 rounded border border-slate-300 text-center outline-none"
+                            className="h-8 w-12 md:h-9 md:w-16 rounded border border-slate-300 text-center outline-none"
                           />
 
                           <button
                             onClick={() => inc(item.sku_id, item.quantity)}
-                            className="h-8 w-8 flex items-center justify-center rounded border border-slate-300"
+                            className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center rounded border border-slate-300"
                             title="Increase"
                           >
-                            <Image src={assets.increase_arrow} alt="+" className="h-4 w-4" />
+                            <Image src={assets.increase_arrow} alt="+" className="h-4 w-4 md:h-5 md:w-5" />
                           </button>
 
                           <button
-                            className="ml-auto text-xs text-orange-600 hover:underline"
+                            className="ml-auto text-xs md:text-sm text-orange-600 hover:underline"
                             onClick={() => remove(item.sku_id)}
                           >
                             Remove
                           </button>
                         </div>
-
-                        {/* subtotal */}
-                        <div className="mt-2 text-sm text-slate-900 font-medium">
-                          Subtotal: {currency} {(item.sp * item.quantity).toFixed(2)}
-                        </div>
                       </div>
+
                     </div>
                   </div>
                 ))}
-              </div>
-
-              {/* 🔹 Desktop: classic table */}
-              <div className="hidden md:block overflow-x-auto rounded-2xl ring-1 ring-black/5 bg-white">
-                <table className="min-w-full table-auto">
-                  <thead className="text-left bg-slate-50/70">
-                    <tr className="text-gray-700">
-                      <th className="pb-4 md:px-4 px-2 font-medium">Product Details</th>
-                      <th className="pb-4 md:px-4 px-2 font-medium">Price</th>
-                      <th className="pb-4 md:px-4 px-2 font-medium">Quantity</th>
-                      <th className="pb-4 md:px-4 px-2 font-medium">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((item) => (
-                      <tr key={item.sku_id} className="border-t border-slate-100 text-sm text-slate-700">
-                        <td className="py-4 md:px-4 px-2">
-                          <div className="flex items-center gap-4">
-                            <div className="rounded-lg overflow-hidden bg-slate-100 p-2">
-                              {item.thumbnailImg ? (
-                                <Image
-                                  src={item.thumbnailImg}
-                                  alt={item.name}
-                                  width={64}
-                                  height={64}
-                                  className="h-16 w-16 object-cover"
-                                />
-                              ) : (
-                                <div className="h-16 w-16 rounded bg-gray-100 border border-gray-200" />
-                              )}
-                            </div>
-                            <div>
-                              <p className="font-medium text-slate-900">{item.name}</p>
-                              <button
-                                className="mt-1 text-xs text-orange-600 hover:underline"
-                                onClick={() => remove(item.sku_id)}
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="py-4 md:px-4 px-2">
-                          <div className="flex items-center gap-2">
-                            {item.mrp > 0 && item.mrp > item.sp && (
-                              <span className="text-gray-500 line-through">
-                                {currency} {item.mrp.toFixed(2)}
-                              </span>
-                            )}
-                            <span className="text-gray-900 font-medium">
-                              {currency} {item.sp.toFixed(2)}
-                            </span>
-                            {item.mrp > item.sp && (
-                              <span className="ml-1 rounded bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">
-                                {percentOff(item.mrp, item.sp)}% off
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="py-4 md:px-4 px-2">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => dec(item.sku_id, item.quantity)}
-                              disabled={item.quantity <= 1}
-                              title="Decrease"
-                            >
-                              <Image src={assets.decrease_arrow} alt="-" className="h-4 w-4" />
-                            </button>
-
-                            <input
-                              type="number"
-                              min={1}
-                              value={item.quantity}
-                              onChange={(e) => {
-                                let val = parseInt(e.target.value, 10);
-                                if (isNaN(val) || val < 1) val = 1;
-                                setQty(item.sku_id, val);
-                              }}
-                              className="h-8 w-12 rounded border border-slate-300 text-center outline-none"
-                            />
-
-                            <button onClick={() => inc(item.sku_id, item.quantity)} title="Increase">
-                              <Image src={assets.increase_arrow} alt="+" className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-
-                        <td className="py-4 md:px-4 px-2 font-medium text-slate-900">
-                          {currency} {(item.sp * item.quantity).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             </>
           )}

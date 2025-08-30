@@ -2,6 +2,7 @@ import { forwardCookies } from "@/lib/forwardCookies";
 
 export default async function handler(req, res) {
   try {
+    console.log("updateCart handlers req.body:::", req.body)
     const url = `${process.env.NODE_HOST}/api/user/updateCart`;
     const response = await fetch(url, {
       method: "POST",

@@ -1,75 +1,54 @@
 // server/controllers/cartController.js
 const { getHash, setHash } = require("../config/redisClient");
 
-// const updateCart = async (req, res) => {
-//   try {
-//     const { items } = req.body;
-//     const userKey = `user:${req.user.userId}`;
+// Merge helper (accumulate by sku_id)
+function mergeItemsBySku(base = [], incoming = []) {
+  const qty = new Map();
+  for (const it of Array.isArray(base) ? base : []) {
+    if (it && it.sku_id) qty.set(it.sku_id, (qty.get(it.sku_id) || 0) + Number(it.quantity || 0));
+  }
+  for (const it of Array.isArray(incoming) ? incoming : []) {
+    if (it && it.sku_id) qty.set(it.sku_id, (qty.get(it.sku_id) || 0) + Number(it.quantity || 1));
+  }
+  return Array.from(qty.entries()).map(([sku_id, q]) => ({
+    sku_id,
+    quantity: Math.max(1, Number(q) || 1),
+  }));
+}
 
-//     if (!Array.isArray(items)) {
-//       return res.status(400).json({ error: "Cart items must be an array" });
-//     }
-
-//     const cartData = { items };
-
-//     await setHash(userKey, "cart", cartData);
-
-//     res.json({ message: "Item added in Cart" });
-//   } catch (err) {
-//     console.error("updateCart error:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// };
 const updateCart = async (req, res) => {
   try {
-    const { items = [], merge = true } = req.body;
+    const { items = [], merge = true } = req.body; // <-- merge controls behavior
     const userKey = `user:${req.user.userId}`;
 
     if (!Array.isArray(items)) {
       return res.status(400).json({ error: "Cart items must be an array" });
     }
 
-    // 1) Load existing cart from Redis
-    // getHash should return the stored value or null.
-    // If your getHash returns strings, JSON.parse it.
-    let existingCart = await getHash(userKey, "cart");
-    if (typeof existingCart === "string") {
-      try { existingCart = JSON.parse(existingCart); } catch { existingCart = null; }
+    // 1) Read existing from Redis
+    let existing = await getHash(userKey, "cart");
+    if (typeof existing === "string") {
+      try { existing = JSON.parse(existing); } catch { existing = null; }
     }
-    const existingItems = Array.isArray(existingCart?.items) ? existingCart.items : [];
+    const existingItems = Array.isArray(existing?.items) ? existing.items : [];
 
-    // 2) Build final list (merge or replace)
-    let finalItems = [];
+    // 2) Merge OR Replace
+    let finalItems;
     if (merge) {
-      // Merge: accumulate quantities by sku_id
-      const qtyBySku = new Map();
-      for (const it of existingItems) {
-        if (it && it.sku_id) {
-          qtyBySku.set(it.sku_id, (qtyBySku.get(it.sku_id) || 0) + Number(it.quantity || 0));
-        }
-      }
-      for (const it of items) {
-        if (it && it.sku_id) {
-          qtyBySku.set(it.sku_id, (qtyBySku.get(it.sku_id) || 0) + Number(it.quantity || 1));
-        }
-      }
-      finalItems = Array.from(qtyBySku.entries()).map(([sku_id, quantity]) => ({
-        sku_id,
-        quantity: Math.max(1, Number(quantity) || 1),
-      }));
+      finalItems = mergeItemsBySku(existingItems, items);
     } else {
-      // Replace: just keep valid items
+      // REPLACE mode: take payload as the new source of truth; drop 0/negative
       finalItems = items
-        .filter((it) => it && it.sku_id)
-        .map((it) => ({
+        .filter(it => it && it.sku_id && Number(it.quantity) > 0)
+        .map(it => ({
           sku_id: it.sku_id,
           quantity: Math.max(1, Number(it.quantity) || 1),
         }));
     }
 
-    // 3) Save back to Redis
+    // 3) Save
     const cartData = { items: finalItems };
-    await setHash(userKey, "cart", cartData); // if your setHash expects a string, do JSON.stringify(cartData)
+    await setHash(userKey, "cart", JSON.stringify(cartData));
 
     return res.json({ message: "Cart updated", cart: cartData });
   } catch (err) {
@@ -78,15 +57,4 @@ const updateCart = async (req, res) => {
   }
 };
 
-
 module.exports = { updateCart };
-
-// curl -X POST http://localhost:8000/user/updateCart \
-//   -H "Content-Type: application/json" \
-//   -H "Authorization: Bearer <your_access_token>" \
-//   -d '{
-//     "items": [
-//       {"sku_id": "66c8f1abcdef123456789012", "quantity": 2 },
-//       {"sku_id": "66c8a3abcdef123456789012", "quantity": 1 }
-//     ]
-//   }'

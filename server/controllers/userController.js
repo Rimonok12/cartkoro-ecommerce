@@ -51,13 +51,11 @@ const generateOtp = async (req, res) => {
 const verifyOtp = async (req, res) => {
   try {
     const { phone, otp } = req.body;
-    if (!phone || !otp)
-      return res.status(400).json({ error: "Phone and OTP required" });
+    if (!phone || !otp) return res.status(400).json({ error: "Phone and OTP required" });
 
     const record = await CustomerOtp.findOne({ phone, otp });
     if (!record) return res.status(400).json({ error: "Invalid OTP" });
-    if (record.expires_at < new Date())
-      return res.status(400).json({ error: "OTP expired" });
+    if (record.expires_at < new Date()) return res.status(400).json({ error: "OTP expired" });
 
     let user = await User.findOne({ phone_number: phone, status: 1 });
     let isNewUser = false;
@@ -71,15 +69,11 @@ const verifyOtp = async (req, res) => {
 
     await CustomerOtp.deleteOne({ _id: record._id });
 
-    const payload = {
-      userId: user._id,
-      phone: user.phone_number,
-      is_admin: user.is_admin,
-    };
+    const payload = { userId: user._id, phone: user.phone_number, is_admin: user.is_admin };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
     const hashedRefreshToken = hashToken(refreshToken);
-    // Save refresh token in DB
+
     await UserSession.create({
       user_id: user._id,
       refresh_token: hashedRefreshToken,
@@ -88,63 +82,45 @@ const verifyOtp = async (req, res) => {
       device_info: req.headers["user-agent"] || "Unknown Device",
     });
 
-    // Store refresh token as HttpOnly cookie
     res.cookie("CK-REF-T", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       path: "/",
-      maxAge: 60 * 24 * 60 * 60 * 1000, // 60 days
+      maxAge: 60 * 24 * 60 * 60 * 1000,
     });
 
-    // Extract first name and referral code
+    // temp firstName (will be replaced by register)
     let firstName = user.full_name
       ? user.full_name.trim().split(/\s+/)[0].toUpperCase()
       : "USER";
     if (firstName.length > 10) firstName = firstName.substring(0, 10);
 
-    const referralCode =
-      user.referral_code ||
-      `${firstName}${Math.floor(1000 + Math.random() * 9000)}`;
-
-    // redis---
     const userKey = `user:${user._id}`;
-    const EXPIRY_SEC = 60 * 24 * 60 * 60; // 60 days in seconds
-    // Load profile
-    await setHash(
-      userKey,
-      "profile",
-      {
-        firstName: firstName,
-        is_admin: user.is_admin,
-      },
-      EXPIRY_SEC
-    );
-    // Load cart from DB (or empty)
+    const EXPIRY_SEC = 60 * 24 * 60 * 60;
+
+    await setHash(userKey, "profile", { firstName, is_admin: user.is_admin }, EXPIRY_SEC);
+
     const existingCart = await Cart.findOne({ user_id: user._id });
     await setHash(userKey, "cart", existingCart || { items: [] }, EXPIRY_SEC);
     await Cart.deleteOne({ user_id: user._id });
-    // Load cashback from DB (or empty)
+
     const existingCashback = await Cashback.findOne({ user_id: user._id });
-    await setHash(
-      userKey,
-      "cashback",
-      existingCashback || { amount: 0 },
-      EXPIRY_SEC
-    );
+    await setHash(userKey, "cashback", existingCashback || { amount: 0 }, EXPIRY_SEC);
 
     res.status(200).json({
       accessToken,
       userId: user._id,
       firstName,
       newUser: isNewUser,
-      referralCode,
+      // referral code is finalized in register()
     });
   } catch (err) {
     console.error("verifyOtp error:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
+
 
 // ------------------- REFRESH TOKEN -------------------
 const refresh = async (req, res) => {
@@ -197,29 +173,41 @@ const logout = async (req, res) => {
     if (payload?.userId) {
       const userKey = `user:${payload.userId}`;
       const cachedData = await getAllHash(userKey);
+      console.log("logout cachedData::", cachedData);
 
-      // insert cached cart data into db
-      if (cachedData.cart) {
+      // Parse cart from Redis (Redis hash values are strings)
+      let parsedCart = null;
+      if (cachedData?.cart) {
+        try {
+          parsedCart = typeof cachedData.cart === "string"
+            ? JSON.parse(cachedData.cart)
+            : cachedData.cart;
+        } catch (e) {
+          console.warn("Failed to parse cached cart JSON on logout:", e);
+        }
+      }
+
+      // Only persist if we have a valid items array
+      if (parsedCart && Array.isArray(parsedCart.items)) {
         const existingCart = await Cart.findOne({ user_id: payload.userId });
 
         if (existingCart) {
-          // update existing cart
-          existingCart.set(cachedData.cart);
+          // Update JUST the items array
+          existingCart.items = parsedCart.items;
           await existingCart.save();
         } else {
-          // insert new cart
-          const newCart = new Cart({
+          // Create a new cart doc with items
+          await Cart.create({
             user_id: payload.userId,
-            ...cachedData.cart,
+            items: parsedCart.items,
           });
-          await newCart.save();
         }
       }
 
       // clear redis
       await delKey(userKey);
 
-      // clear refresh token
+      // clear refresh token from DB
       const hashedToken = hashToken(req.cookies["CK-REF-T"]);
       await UserSession.deleteOne({
         user_id: payload.userId,
@@ -227,6 +215,7 @@ const logout = async (req, res) => {
       });
     }
 
+    // clear cookie
     res.clearCookie("CK-REF-T", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -241,29 +230,26 @@ const logout = async (req, res) => {
   }
 };
 
-// Register new user (optional if you want to pre-register)
+
+// ------------------REGISTER--------------------
 const register = async (req, res) => {
   try {
     const { full_name, email, phone_number, referrerCode } = req.body;
 
-    // Check if user exists (OTP already verified)
     const existingUser = await User.findOne({ phone_number, status: 1 });
     if (!existingUser) {
-      return res
-        .status(400)
-        .json({ error: "User not found. Please verify OTP first." });
+      return res.status(400).json({ error: "User not found. Please verify OTP first." });
     }
 
-    // Extract first name & format
+    // Proper firstName
     let firstName = (full_name || "USER").trim().split(/\s+/)[0].toUpperCase();
     if (firstName.length > 10) firstName = firstName.substring(0, 10);
 
-    // Generate referral code if missing
+    // Create or reuse referral code
     const referralCode =
-      existingUser.referral_code ||
-      `${firstName}${Math.floor(1000 + Math.random() * 9000)}`;
+      existingUser.referral_code || `${firstName}${Math.floor(1000 + Math.random() * 9000)}`;
 
-    // Update user basic info
+    // Update core user fields
     const updatedUser = await User.findByIdAndUpdate(
       existingUser._id,
       {
@@ -274,30 +260,35 @@ const register = async (req, res) => {
       { new: true }
     );
 
-    // Handle referral if provided
+    // Optional: handle referral
     if (referrerCode) {
-      const referrer = await User.findOne({
-        referral_code: referrerCode,
-        status: 1,
-      });
-      if (referrer) {
-        // Prevent duplicate reference
-        const alreadyReferred = await Reference.findOne({
-          referred_id: existingUser._id,
-        });
-        if (!alreadyReferred) {
-          await Reference.create({
-            referred_id: existingUser._id,
-            referred_by: referrer._id,
-            status: 0,
-          });
-        }
-      } else {
+      const referrer = await User.findOne({ referral_code: referrerCode, status: 1 });
+      if (!referrer) {
         return res.status(400).json({ error: "Referral Code is Incorrect" });
+      }
+      const alreadyReferred = await Reference.findOne({ referred_id: existingUser._id });
+      if (!alreadyReferred) {
+        await Reference.create({
+          referred_id: existingUser._id,
+          referred_by: referrer._id,
+          status: 0,
+        });
       }
     }
 
-    // Respond with only referralCode, userId, and firstName
+    // 🔴 CRITICAL: Update Redis profile so UI shows new name immediately
+    const userKey = `user:${updatedUser._id}`;
+    const EXPIRY_SEC = 60 * 24 * 60 * 60;
+    await setHash(
+      userKey,
+      "profile",
+      { firstName, is_admin: !!updatedUser.is_admin },
+      EXPIRY_SEC
+    );
+
+    // You don’t need to touch cart/cashback here.
+
+    // Respond with fresh display fields
     res.status(200).json({
       userId: updatedUser._id,
       referralCode,
@@ -308,6 +299,7 @@ const register = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
+
 
 const getUserRedisData = async (req, res) => {
   try {

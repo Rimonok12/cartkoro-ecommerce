@@ -12,7 +12,6 @@ export default function AccountDropdown() {
 
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-
   const userName = userData?.firstName || "";
   const isAdmin = Boolean(userData?.is_admin);
 
