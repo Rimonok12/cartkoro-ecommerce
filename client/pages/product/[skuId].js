@@ -1,3 +1,4 @@
+// pages/product/[skuId].js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -24,7 +25,7 @@ const Product = () => {
   const router = useRouter();
   const { skuId } = router.query;
 
-  const { addToCart } = useAppContext();
+  const { userData, addToCart } = useAppContext();
 
   const [productData, setProductData] = useState(null);
   const [mainImage, setMainImage] = useState(null);
@@ -37,9 +38,7 @@ const Product = () => {
 
     const fetchProductData = async () => {
       try {
-        const res = await fetch(
-          `/api/product/getProductBySkuId?skuId=${skuId}`
-        );
+        const res = await fetch(`/api/product/getProductBySkuId?skuId=${skuId}`);
         const data = await res.json();
 
         if (res.ok) {
@@ -71,17 +70,28 @@ const Product = () => {
     fetchFeatured();
   }, []);
 
-  // addToCart handler (DB + context)
+  // in Product page addToCartHandler
   const addToCartHandler = async (sku_id, quantity = 1, redirect = false) => {
+    if (!userData || !userData._id) {
+      // Not logged in: stash ONLY the last item, tag source to ensure we only add from product flow
+      try {
+        localStorage.setItem(
+          "lastitemtoaddtocart",
+          JSON.stringify({ sku_id, quantity, source: "product" })
+        );
+      } catch {}
+      router.push("/login?redirect=cart");
+      return;
+    }
+
+    // Logged-in flow (normal, no SSR roundtrip needed)
     try {
       await api.post(
         "/user/updateCart",
         { items: [{ sku_id, quantity }] },
         { withCredentials: true }
       );
-
       addToCart(sku_id, quantity);
-
       if (redirect) router.push("/cart");
     } catch (err) {
       console.error("Error updating cart:", err);
@@ -89,12 +99,9 @@ const Product = () => {
   };
 
   if (loading) return <Loading />;
-  if (!productData)
-    return <p className="text-center mt-20">Product not found</p>;
+  if (!productData) return <p className="text-center mt-20">Product not found</p>;
 
-  const { product_name, product_description, category_name, main_sku } =
-    productData;
-
+  const { product_name, product_description, category_name, main_sku } = productData;
   const allImages = [main_sku.thumbnail_img, ...(main_sku.side_imgs || [])];
 
   return (
@@ -155,21 +162,15 @@ const Product = () => {
                 <tbody>
                   <tr>
                     <td className="text-gray-600 font-medium">Color</td>
-                    <td className="text-gray-800/50 ">
-                      {main_sku.variant_values.color}
-                    </td>
+                    <td className="text-gray-800/50 ">{main_sku.variant_values.color}</td>
                   </tr>
                   <tr>
                     <td className="text-gray-600 font-medium">Storage</td>
-                    <td className="text-gray-800/50 ">
-                      {main_sku.variant_values.storage}
-                    </td>
+                    <td className="text-gray-800/50 ">{main_sku.variant_values.storage}</td>
                   </tr>
                   <tr>
                     <td className="text-gray-600 font-medium">RAM</td>
-                    <td className="text-gray-800/50 ">
-                      {main_sku.variant_values.ram}
-                    </td>
+                    <td className="text-gray-800/50 ">{main_sku.variant_values.ram}</td>
                   </tr>
                   <tr>
                     <td className="text-gray-600 font-medium">Category</td>
@@ -206,8 +207,7 @@ const Product = () => {
           <div className="flex flex-col items-center">
             <div className="flex flex-col items-center mb-4 mt-16">
               <p className="text-3xl font-medium">
-                Featured{" "}
-                <span className="font-medium text-orange-600">Products</span>
+                Featured <span className="font-medium text-orange-600">Products</span>
               </p>
               <div className="w-28 h-0.5 bg-orange-600 mt-2"></div>
             </div>

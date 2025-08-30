@@ -123,6 +123,7 @@ const verifyOtp = async (req, res) => {
     // Load cart from DB (or empty)
     const existingCart = await Cart.findOne({ user_id: user._id });
     await setHash(userKey, "cart", existingCart || { items: [] }, EXPIRY_SEC);
+    await Cart.deleteOne({ user_id: user._id });
     // Load cashback from DB (or empty)
     const existingCashback = await Cashback.findOne({ user_id: user._id });
     await setHash(
@@ -176,6 +177,8 @@ const refresh = async (req, res) => {
       is_admin: user.is_admin,
     });
 
+    console.log("newAccessToken:::", newAccessToken)
+
     res.json({ accessToken: newAccessToken });
   } catch (err) {
     console.error("refreshToken error:", err);
@@ -194,13 +197,23 @@ const logout = async (req, res) => {
     if (payload?.userId) {
       const userKey = `user:${payload.userId}`;
       const cachedData = await getAllHash(userKey);
-      // add cashed cart data into db
+
+      // insert cached cart data into db
       if (cachedData.cart) {
-        await Cart.findOneAndUpdate(
-          { user_id: payload.userId },
-          cachedData.cart,
-          { upsert: true }
-        );
+        const existingCart = await Cart.findOne({ user_id: payload.userId });
+
+        if (existingCart) {
+          // update existing cart
+          existingCart.set(cachedData.cart);
+          await existingCart.save();
+        } else {
+          // insert new cart
+          const newCart = new Cart({
+            user_id: payload.userId,
+            ...cachedData.cart,
+          });
+          await newCart.save();
+        }
       }
 
       // clear redis
@@ -208,7 +221,6 @@ const logout = async (req, res) => {
 
       // clear refresh token
       const hashedToken = hashToken(req.cookies["CK-REF-T"]);
-
       await UserSession.deleteOne({
         user_id: payload.userId,
         refresh_token: hashedToken,
@@ -372,3 +384,258 @@ module.exports = {
   getProfileData,
   updateProfileData
 };
+
+
+
+
+
+
+
+
+
+// const bcrypt = require('bcrypt');
+
+// const {
+//   generateAccessToken,
+//   generateRefreshToken,
+//   verifyAccessToken,
+//   verifyRefreshToken
+// } = require('../utils/jwt');
+
+// const mysqlConnection = require('../database/mysql.js');
+// const { hashToken } = require("../utils/hash");
+// const { setHash, getHash, getAllHash, delKey, redisClient } = require("../database/redisClient");
+// const { encrypt, decrypt } = require('../encryption.js');
+
+
+// const executeQuery = (query, values) => {
+//   return new Promise((resolve, reject) => {
+//     mysqlConnection.query(query, values, (err, rows) => {
+//       if (err) reject("mysql insert, update, select, etc. error::" + err);
+//       else resolve(rows);
+//     });
+//   });
+// };
+
+
+// // helpers
+// function tryVerifyRefresh(rawToken) {
+//   try { return verifyRefreshToken(rawToken); } catch { return null; }
+// }
+
+// const isInterimMobile = (m) =>
+//   typeof m === 'string' && m.length === 11 && m.startsWith('1');
+
+
+// // ------------------- VERIFY API (supports interim→real upgrade, blocks real→real switch) -------------------
+// const verifyApi = async (req, res) => {
+//   try {
+//     let { mobileNo } = req.body;
+//     const rawToken = req.cookies['OHA-REF-T'];
+
+//     const REFRESH_MAX_AGE_MS  = 60 * 24 * 60 * 60 * 1000; // 60 days
+//     const REFRESH_MAX_AGE_SEC = Math.floor(REFRESH_MAX_AGE_MS / 1000);
+
+//     const decoded = rawToken ? tryVerifyRefresh(rawToken) : null;
+//     const cookieMobile = decoded?.mobileNo || null;
+
+//     // Block real→real switch without logout
+//     if (
+//       cookieMobile &&
+//       !isInterimMobile(cookieMobile) &&
+//       mobileNo && !isInterimMobile(mobileNo) &&
+//       cookieMobile !== mobileNo
+//     ) {
+//       return res.status(409).json({
+//         error: 'Different real mobile not allowed in active session. Please logout first.',
+//         currentMobile: cookieMobile,
+//         requestedMobile: mobileNo,
+//       });
+//     }
+
+//     // Decide target identity
+//     if (!mobileNo) {
+//       mobileNo = cookieMobile || ('1' + String(Math.floor(Math.random() * 1e10)).padStart(10, '0'));
+//     } else if (cookieMobile) {
+//       if (!isInterimMobile(cookieMobile)) {
+//         mobileNo = cookieMobile; // lock to real from cookie
+//       } else if (!isInterimMobile(mobileNo)) {
+//         // interim -> real (upgrade handled below)
+//       } else {
+//         mobileNo = cookieMobile; // both interim, keep cookie
+//       }
+//     }
+
+//     // If cookie already matches identity → just return access token
+//     if (cookieMobile && cookieMobile === mobileNo) {
+//       const accessToken = generateAccessToken({ mobileNo });
+//       return res.status(200).json({ accessToken, interim: isInterimMobile(mobileNo) });
+//     }
+
+//     // Upgrade: interim cookie -> real request
+//     if (cookieMobile && isInterimMobile(cookieMobile) && !isInterimMobile(mobileNo)) {
+//       const oldHashed = hashToken(rawToken);
+
+//       // delete interim session row
+//       await executeQuery(
+//         `DELETE FROM USER_SESSION WHERE MOBILE_NO = ? AND REFRESH_TOKEN = ? LIMIT 1`,
+//         [cookieMobile, oldHashed]
+//       );
+
+//       // delete interim redis key
+//       const oldEnc = `ENC=${encrypt(`CLIENT_ID=1&USER_ID=2&MOBILE_NO=${cookieMobile}`)}`;
+//       await redisClient.del(`user:${oldEnc}:rt:${oldHashed}`);
+
+//       // clear BOTH cookies (we'll set fresh ones below)
+//       res.clearCookie('OHA-REF-T', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
+//       res.clearCookie('OHA-IS-LOGGEDIN', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
+//     }
+
+//     // Look up OHA_USER_ID only for real numbers
+//     let ohaUserId = null;
+//     if (!isInterimMobile(mobileNo)) {
+//       const rows = await executeQuery(
+//         'SELECT ID FROM USERS WHERE MOBILE_NO = ? LIMIT 1',
+//         [mobileNo]
+//       );
+//       if (rows && rows.length) ohaUserId = rows[0].ID ?? rows[0].id ?? null;
+//     }
+
+//     // Create NEW refresh token + session
+//     const payload = { mobileNo };
+//     const refreshToken = generateRefreshToken(payload);
+//     const hashedRefreshToken = hashToken(refreshToken);
+
+//     const expiresAt  = new Date(Date.now() + REFRESH_MAX_AGE_MS);
+//     const deviceInfo = req.headers['user-agent'] || 'Unknown Device';
+//     const ipAddress  = (req.headers['x-forwarded-for'] || '').split(',')[0]?.trim() || req.ip || null;
+
+//     const enc = `ENC=${encrypt(`CLIENT_ID=1&USER_ID=2&MOBILE_NO=${mobileNo}`)}`;
+//     const encKey = `user:${enc}`;
+
+//     await executeQuery(
+//       `INSERT INTO USER_SESSION
+//         (MOBILE_NO, REFRESH_TOKEN, EXPIRES_AT, DEVICE_INFO, IP_ADDRESS, QUERY_STRING, OHA_USER_ID)
+//        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//       [
+//         mobileNo,
+//         hashedRefreshToken,     // store HASH
+//         expiresAt,
+//         deviceInfo,
+//         ipAddress,
+//         encKey,
+//         ohaUserId,              // null if interim or no match
+//       ]
+//     );
+
+//     // Redis per-token key with TTL (device-scoped)
+//     await setHash(
+//       `${encKey}:rt:${hashedRefreshToken}`,
+//       'user-session:refreshtoken',
+//       expiresAt.toISOString(),
+//       REFRESH_MAX_AGE_SEC
+//     );
+
+//     // Cookies: refresh + login-state (same expiry/options)
+//     res.cookie('OHA-REF-T', refreshToken, {
+//       httpOnly: true,
+//       secure: true,
+//       sameSite: 'none',
+//       path: '/',
+//       maxAge: REFRESH_MAX_AGE_MS,
+//     });
+//     res.cookie('OHA-IS-LOGGEDIN', (!isInterimMobile(mobileNo)).toString(), {
+//       httpOnly: true,        // set to false if you need frontend JS to read it
+//       secure: true,
+//       sameSite: 'none',
+//       path: '/',
+//       maxAge: REFRESH_MAX_AGE_MS,
+//     });
+
+//     const accessToken = generateAccessToken({ mobileNo });
+//     return res.status(200).json({
+//       accessToken,
+//       interim: isInterimMobile(mobileNo),
+//       upgraded: !!(cookieMobile && isInterimMobile(cookieMobile) && !isInterimMobile(mobileNo)),
+//     });
+
+//   } catch (err) {
+//     console.error('verifyApi error:', err);
+//     return res.status(500).json({ error: 'Server error' });
+//   }
+// };
+
+
+// // ------------------- REFRESH TOKEN (Redis-only check, no cookie changes) -------------------
+// const refresh = async (req, res) => {
+//   try {
+//     const rawToken = req.cookies['OHA-REF-T'];
+//     if (!rawToken) return res.status(401).json({ error: 'No refresh token' });
+
+//     const decoded = tryVerifyRefresh(rawToken);
+//     if (!decoded?.mobileNo) {
+//       return res.status(403).json({ error: 'Invalid or expired refresh token' });
+//     }
+
+//     const mobileNo = decoded.mobileNo;
+//     const hashedRefreshToken = hashToken(rawToken);
+//     const enc = `ENC=${encrypt(`CLIENT_ID=1&USER_ID=2&MOBILE_NO=${mobileNo}`)}`;
+//     const redisKey = `user:${enc}:rt:${hashedRefreshToken}`;
+
+//     const exists = await redisClient.exists(redisKey);
+//     if (!exists) {
+//       return res.status(403).json({ error: 'Invalid or expired refresh token' });
+//     }
+
+//     const accessToken = generateAccessToken({ mobileNo });
+//     return res.json({ accessToken });
+
+//   } catch (err) {
+//     console.error('refresh error:', err);
+//     return res.status(403).json({ error: 'Invalid or expired refresh token' });
+//   }
+// };
+
+
+// // ------------------- LOGOUT (device-scoped) -------------------
+// const logout = async (req, res) => {
+//   try {
+//     const rawToken = req.cookies['OHA-REF-T'];
+
+//     if (rawToken) {
+//       const decoded = tryVerifyRefresh(rawToken);
+//       if (decoded?.mobileNo) {
+//         const mobileNo = decoded.mobileNo;
+//         const hashedToken = hashToken(rawToken);
+
+//         // delete DB session
+//         await executeQuery(
+//           `DELETE FROM USER_SESSION WHERE MOBILE_NO = ? AND REFRESH_TOKEN = ? LIMIT 1`,
+//           [mobileNo, hashedToken]
+//         );
+
+//         // delete Redis per-token key
+//         const enc = `ENC=${encrypt(`CLIENT_ID=1&USER_ID=2&MOBILE_NO=${mobileNo}`)}`;
+//         const encKey = `user:${enc}`;
+//         await redisClient.del(`${encKey}:rt:${hashedToken}`);
+//       }
+//     }
+
+//     // clear cookies (both)
+//     res.clearCookie('OHA-REF-T', {
+//       httpOnly: true, secure: true, sameSite: 'none', path: '/',
+//     });
+//     res.clearCookie('OHA-IS-LOGGEDIN', {
+//       httpOnly: true, secure: true, sameSite: 'none', path: '/',
+//     });
+
+//     return res.json({ message: 'Logged out successfully' });
+
+//   } catch (err) {
+//     console.error('logout error:', err);
+//     return res.status(500).json({ error: 'Server error' });
+//   }
+// };
+
+
+// module.exports = { verifyApi, refresh, logout };

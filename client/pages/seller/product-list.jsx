@@ -5,6 +5,7 @@ import { useAppContext } from "@/context/AppContext";
 import Footer from "@/components/seller/Footer";
 import Loading from "@/components/Loading";
 import { essentialsOnLoad } from "@/lib/ssrHelper";
+import { useRouter } from "next/router";
 
 export async function getServerSideProps(context) {
   const essentials = await essentialsOnLoad(context);
@@ -26,7 +27,7 @@ export async function getServerSideProps(context) {
 }
 
 export default function ProductList() {
-  const { router } = useAppContext();
+  const router = useRouter();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);

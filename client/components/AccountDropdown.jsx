@@ -34,11 +34,12 @@ export default function AccountDropdown() {
   }, []);
 
   const handleButton = () => {
-    if (!userName) {
-      router.push("/login");
+    const hasUser = !!(userData && (userData._id || userData.id || userData.firstName));
+    if (!hasUser) {
+      router.push("/login?redirect=account/profile");
       return;
     }
-    setOpen((v) => !v);
+    setOpen((v) => !v); // logged-in: just toggle the dropdown (same behavior as before)
   };
 
   const Item = ({ href, children }) => (

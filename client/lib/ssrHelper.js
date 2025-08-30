@@ -46,6 +46,7 @@ export async function essentialsOnLoad(context) {
     );
 
     const data = res.data; // ✅ use res.data, not res.json()
+    console.log("data from essential", data)
 
     return {
       props: {

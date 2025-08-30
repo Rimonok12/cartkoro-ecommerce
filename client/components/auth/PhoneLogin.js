@@ -1,35 +1,10 @@
-// // components/auth/PhoneLogin.js
-// import { useState } from 'react';
-
-// export default function PhoneLogin({ onContinue }) {
-//   const [phone, setPhone] = useState('');
-//   const [error, setError] = useState('');
-
-//   return (
-//     <div className="p-6 space-y-4 w-full max-w-sm bg-white shadow rounded">
-//       <h1 className="text-xl font-semibold">Enter your phone number</h1>
-//       <input
-//         type="tel"
-//         value={phone}
-//         onChange={(e) => {
-//           setPhone(e.target.value);
-//           if (error) setError('');
-//         }}
-//         placeholder="Phone number"
-//         className="border px-3 py-2 rounded w-full"
-//       />
-//       {error && <p className="text-red-600 text-sm">{error}</p>}
-
-//     </div>
-//   );
-// }
+// components/auth/PhoneLogin.js
 "use client";
+
 import { useState } from "react";
 
 const COUNTRY_CODES = [
   { code: "+880", label: "BD (+880)" },
-  { code: "+91", label: "India (+91)" },
-
 ];
 
 export default function PhoneLogin({ onContinue, defaultCode = "+880" }) {
@@ -51,7 +26,7 @@ export default function PhoneLogin({ onContinue, defaultCode = "+880" }) {
       body: JSON.stringify({ phone: digits, countryCode: code }),
     });
 
-    if (res.ok) onContinue?.({ nextPhone: digits, nextCode: code });
+    if (res.ok) onContinue && onContinue({ nextPhone: digits, nextCode: code });
     else {
       const data = await res.json().catch(() => ({}));
       setError(data.error || "Failed to send OTP. Please try again.");
@@ -62,7 +37,7 @@ export default function PhoneLogin({ onContinue, defaultCode = "+880" }) {
     <div className="space-y-4">
       <h2 className="text-2xl font-semibold">Login or Signup</h2>
 
-      {/* combined field like Myntra */}
+      {/* combined field */}
       <div className="flex items-stretch border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-gray-800">
         <select
           value={code}

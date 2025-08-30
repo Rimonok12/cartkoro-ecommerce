@@ -1,75 +1,11 @@
-// import { useState } from 'react';
-// import { useRouter } from 'next/router';
-// import api from '@/lib/axios';
-// import { useAppContext } from '@/context/AppContext';
-
-// export default function NewUserForm({ phone }) {
-//   const router = useRouter();
-//   const { login } = useAppContext();
-//   const [username, setUsername] = useState('');
-//   const [email, setEmail] = useState('');
-//   const [referral, setReferral] = useState('');
-
-//   const handleSubmit = async () => {
-//     try {
-//       const res = await api.post(
-//         '/user/register',
-//         {
-//           full_name: username,
-//           email,
-//           phone_number: phone,
-//           referrerCode: referral || null,
-//         },
-//         { withCredentials: true }
-//       );
-
-//       const data = res.data;
-//       login(data.firstName);
-//       router.push('/');
-//     } catch (error) {
-//       console.error('Registration error:', error);
-//       alert('Server error');
-//     }
-//   };
-
-//   return (
-//     <>
-//       <h1 className="text-xl font-semibold">Complete your profile</h1>
-//       <input
-//         placeholder="Full Name"
-//         value={username}
-//         onChange={(e) => setUsername(e.target.value)}
-//         className="border px-3 py-2 rounded w-full"
-//         required
-//       />
-//       <input
-//         placeholder="Email (optional)"
-//         value={email}
-//         onChange={(e) => setEmail(e.target.value)}
-//         className="border px-3 py-2 rounded w-full"
-//       />
-//       <input
-//         placeholder="Referral Code (optional)"
-//         value={referral}
-//         onChange={(e) => setReferral(e.target.value)}
-//         className="border px-3 py-2 rounded w-full"
-//       />
-//       <button
-//         onClick={handleSubmit}
-//         className="w-full bg-orange-600 text-white py-2 rounded"
-//       >
-//         Finish
-//       </button>
-//     </>
-//   );
-// }
+// components/auth/NewUserForm.js
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/router";
 import api from "@/lib/axios";
-import { useAppContext } from "@/context/AppContext";
 
-export default function NewUserForm({ phone }) {
+export default function NewUserForm({ phone, onCompleted }) {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -85,7 +21,7 @@ export default function NewUserForm({ phone }) {
     setError("");
 
     try {
-      const res = await api.post(
+      await api.post(
         "/user/register",
         {
           full_name: username,
@@ -95,10 +31,14 @@ export default function NewUserForm({ phone }) {
         },
         { withCredentials: true }
       );
-      window.location.href = "/";
+
+      // After successful registration, let the parent decide where to go.
+      if (onCompleted) onCompleted();
+      else window.location.href="/";
     } catch (err) {
       console.error("Registration error:", err);
-      setError(err?.response?.data?.error || "Server error");
+      const msg = err?.response?.data?.error || "Server error";
+      setError(msg);
     }
   };
 
@@ -126,7 +66,6 @@ export default function NewUserForm({ phone }) {
         className="border px-3 py-2 rounded w-full"
       />
 
-      {/* Terms moved here for signup */}
       <label className="flex items-start gap-3 text-sm text-gray-700">
         <input
           type="checkbox"
@@ -136,19 +75,11 @@ export default function NewUserForm({ phone }) {
         />
         <span>
           By continuing, I agree to the{" "}
-          <a
-            className="text-pink-600 font-semibold"
-            href="/terms"
-            target="_blank"
-          >
+          <a className="text-pink-600 font-semibold" href="/terms" target="_blank">
             Terms of Use
           </a>{" "}
           &{" "}
-          <a
-            className="text-pink-600 font-semibold"
-            href="/privacy"
-            target="_blank"
-          >
+          <a className="text-pink-600 font-semibold" href="/privacy" target="_blank">
             Privacy Policy
           </a>{" "}
           and I am above 18 years old.
