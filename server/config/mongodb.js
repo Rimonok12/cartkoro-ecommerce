@@ -1,4 +1,4 @@
-// server/config/mongo.js
+// server/config/mongodb.js
 const mongoose = require('mongoose');
 
 const connectMongo = async () => {
