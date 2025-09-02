@@ -1,11 +1,12 @@
 // controllers/orderController.js
 const mongoose = require('mongoose');
-const { Order, OrderItem } = require('../models/orderModels');
+const { Order, OrderItem, OrderStatus } = require('../models/orderModels.js');
+
 const { ProductSku } = require('../models/productModels');
 
 //
-// POST /orders
-// Body trusted from FE (basic checks done on FE).
+// POST /orders   (or /orders/createOrder depending on your router)
+// Body trusted from FE.
 // {
 //   shipping_address_id,
 //   total_amount,
@@ -26,13 +27,19 @@ const createOrder = async (req, res) => {
   session.startTransaction();
 
   try {
-    // create order exactly with FE total
+    // 1) Fetch CREATED status id (do NOT create if missing)
+    const createdStatus = await OrderStatus.findOne({ status: 'CREATED' }).session(session).lean();
+    if (!createdStatus?._id) {
+      throw new Error('OrderStatus "CREATED" not found');
+    }
+
+    // 2) Create order with FE total
     const [order] = await Order.create(
       [{ user_id: userId, shipping_address_id, total_amount: Number(total_amount) || 0 }],
       { session }
     );
 
-    // create items as-is (trust FE numbers)
+    // 3) Create items and seed status history with CREATED
     const docs = items.map((it) => ({
       order_id: order._id,
       sku_id: it.sku_id,
@@ -41,12 +48,16 @@ const createOrder = async (req, res) => {
       sp_each: Number(it.sp_each) || 0,
       cashback_amount: Number(it.cashback_amount) || 0,
       delivery_amount: Number(it.delivery_amount) || 0,
-      // keep history optional; FE can add later via separate endpoint if needed
-      item_status_history: []
+      item_status_history: [
+        {
+          status_code: createdStatus._id, // ObjectId of OrderStatus
+        }
+      ]
     }));
+
     await OrderItem.insertMany(docs, { session });
 
-    // minimal but important: atomic stock increment (prevents oversell races)
+    // 4) Atomic stock increment (race guard)
     for (const it of items) {
       const qty = Number(it.quantity) || 1;
       const upd = await ProductSku.updateOne(
@@ -109,7 +120,8 @@ const getUserOrders = async (req, res) => {
         sp_each: it.sp_each,
         cashback_amount: it.cashback_amount,
         delivery_amount: it.delivery_amount,
-        createdAt: it.createdAt
+        createdAt: it.createdAt,
+        item_status_history: it.item_status_history || [] // contains status_code ObjectIds
       });
     }
 

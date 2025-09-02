@@ -115,7 +115,7 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
 
       if (res?.data?.ok) {
         const orderId = res?.data?.order?._id;
-        setSuccessMsg(orderId ? `Order #${orderId} placed successfully.` : "Your order has been placed successfully.");
+        setSuccessMsg(orderId ? `Order #${orderId} has been placed successfully.` : "Your order has been placed successfully.");
         setSuccessOpen(true);
         return;
       }

@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 /* ======================= Order Status (optional dictionary) ======================= */
 const orderStatusSchema = new mongoose.Schema(
   {
-    status_code: { type: String, required: true, unique: true }, // e.g. CREATED, PAID, SHIPPED, DELIVERED, CANCELED
+    status: { type: String, required: true, unique: true }, // e.g. CREATED, PAID, SHIPPED, DELIVERED, CANCELED
     status_desc: { type: String, required: true }
   },
   { timestamps: true, versionKey: false }
@@ -38,7 +38,7 @@ const orderItemSchema = new mongoose.Schema(
       {
         // IMPORTANT: ref must be a **model** name
         status_code: { type: mongoose.Schema.Types.ObjectId, ref: 'OrderStatus', index: true },
-        note: { type: String },
+        note: { type: String, default: "" },
         at: { type: Date, default: Date.now }
       }
     ]
