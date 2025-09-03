@@ -7,7 +7,7 @@ import { setAccessToken } from "@/lib/axios";
 const OTP_LENGTH = 6;
 const VALIDITY_SEC = 180; // 3 minutes
 
-export default function OTPInput({ phone, countryCode = "+880", onVerify }) {
+export default function OTPInput({ phone, countryCode = "+88", onVerify }) {
   const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(""));
   const [error, setError] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(VALIDITY_SEC);

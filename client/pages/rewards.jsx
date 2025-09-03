@@ -27,13 +27,7 @@ const getCashbackBalance = (cashbackData) => {
   if (cashbackData == null) return 0;
   if (typeof cashbackData === "number") return cashbackData;
   // support various shapes
-  return (
-    cashbackData.balance ??
-    cashbackData.amount ??
-    cashbackData.total ??
-    cashbackData.cashback ??
-    0
-  );
+  return cashbackData;
 };
 
 export default function RewardsPage(props) {

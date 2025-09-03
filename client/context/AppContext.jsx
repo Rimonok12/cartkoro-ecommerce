@@ -11,7 +11,7 @@ export const AppContextProvider = ({
   children,
   initialUserData = {},
   initialCartData = { items: [] },
-  initialCashbackData = {},
+  initialCashbackData = 0,
 }) => {
   const currency = process.env.NEXT_PUBLIC_CURRENCY;
 
@@ -30,7 +30,7 @@ export const AppContextProvider = ({
   const logoutContext = () => {
     setUserData({});
     setCartData({ items: [] });
-    setCashbackData({});
+    setCashbackData(0);
   };
 
   // Inject logoutContext into Axios once

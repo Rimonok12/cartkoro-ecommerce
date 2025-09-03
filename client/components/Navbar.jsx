@@ -44,7 +44,6 @@ export default function Navbar() {
 
   const isLoggedIn = Boolean(userData && (userData._id || userData.id));
   const cartCount = getCartCount();
-  const cashback = cashbackData?.balance || 0;
 
   // helper: gated navigation
   const goGated = (targetPath, redirectKey) => {
@@ -94,7 +93,7 @@ export default function Navbar() {
           >
             <span className="hidden md:block text-sm">Cashback</span>
             <span className="ml-1 grid place-items-center rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">
-              {Math.max(0, Math.floor(cashback))}
+              {Math.max(0, Math.floor(cashbackData))}
             </span>
           </button>
 

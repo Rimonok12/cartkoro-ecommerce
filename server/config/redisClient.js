@@ -27,6 +27,10 @@ const getAllHash = async (key) => {
   return parsed;
 };
 
+async function delHash(key, field) {
+  await redis.hdel(key, field);
+}
+
 const delKey = async (key) => {
   return redis.del(prefixedKey(key));
 };
@@ -46,6 +50,7 @@ module.exports = {
   setHash,
   getHash,
   getAllHash,
+  delHash,
   delKey,
   raw: redis,
 };

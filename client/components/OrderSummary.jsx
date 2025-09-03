@@ -1,8 +1,7 @@
-// client/components/OrderSummary.jsx
 'use client';
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/router"; // pages router
+import { useRouter } from "next/router";
 import { useAppContext } from "@/context/AppContext";
 import api from "@/lib/axios";
 
@@ -17,42 +16,33 @@ function toNumber(val, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** Success Modal (simple, accessible-ish) */
 const SuccessModal = ({ open, message, onOK }) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="relative z-10 w-[90%] max-w-md rounded-2xl bg-white p-6 shadow-xl"
-      >
+      <div role="dialog" aria-modal="true" className="relative z-10 w-[90%] max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <h2 className="text-lg font-semibold">Success</h2>
         <p className="text-sm text-gray-600 mt-1">{message}</p>
         <div className="mt-6 flex justify-end">
-          <button
-            className="px-5 py-2 bg-orange-600 text-white rounded-lg"
-            onClick={onOK}
-          >
-            OK
-          </button>
+          <button className="px-5 py-2 bg-orange-600 text-white rounded-lg" onClick={onOK}>OK</button>
         </div>
       </div>
     </div>
   );
 };
 
+const CASHBACK_THRESHOLD = 500; // ₹500 min per-line subtotal
+
 const OrderSummary = ({ rows = [], subtotal = 0 }) => {
   const router = useRouter();
-  const { currency, getCartCount, cashbackData } = useAppContext();
+  // 👇 we need setCashbackData so we can clear it on use
+  const { currency, getCartCount, cashbackData, setCartData, setCashbackData } = useAppContext();
 
-  // -------- Address state/fetch --------
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userAddresses, setUserAddresses] = useState([]);
 
-  // -------- Success modal state --------
   const [successOpen, setSuccessOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState("Your order has been placed successfully.");
 
@@ -72,7 +62,7 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
     setIsDropdownOpen(false);
   };
 
-  // -------- Money (no tax) --------
+  // ---- Money (no tax) ----
   const totalMrp = useMemo(() => {
     return rows.reduce((sum, r) => {
       const mrp = toNumber(r?.mrp ?? r?.MRP ?? r?.listPrice ?? r?.priceBeforeDiscount ?? r?.sp, 0);
@@ -82,11 +72,39 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
   }, [rows]);
 
   const mrpDiscount = Math.max(0, totalMrp - subtotal);
-  const cashback = toNumber(cashbackData, 0);
-  const total = Math.max(0, subtotal - cashback); // shipping is free
+
+  // ---- Cashback eligibility & application ----
+  const rawCashback = toNumber(cashbackData, 0);
+
+  // Find highest sp*qty line; also check if any line meets threshold
+  let maxIdx = -1;
+  let maxVal = -1;
+  let hasEligibleLine = false;
+
+  rows.forEach((r, idx) => {
+    const sp = Number(r.sp ?? 0) || 0;
+    const qty = Number(r.quantity ?? 0) || 0;
+    const val = sp * qty;
+    if (val >= CASHBACK_THRESHOLD) hasEligibleLine = true;
+    if (val > maxVal) {
+      maxVal = val;
+      maxIdx = idx;
+    }
+  });
+
+  // Apply cashback only if:
+  // - there *exists* a line with subtotal ≥ threshold
+  // - and cashback > 0
+  const willApplyCashback = hasEligibleLine && rawCashback > 0;
+  // Cap cashback to the chosen line subtotal (guard)
+  const eligibleLineSubtotal = maxIdx >= 0 ? (Number(rows[maxIdx]?.sp ?? 0) || 0) * (Number(rows[maxIdx]?.quantity ?? 0) || 0) : 0;
+  const appliedCashback = willApplyCashback ? Math.min(rawCashback, eligibleLineSubtotal) : 0;
+
+  // Totals reflect *applied* cashback only
+  const total = Math.max(0, subtotal - appliedCashback);
   const totalDiscountPercent = totalMrp > 0 ? Math.round((mrpDiscount / totalMrp) * 100) : 0;
 
-  // 👉 createOrder calls the new API and opens success modal
+  // 👉 createOrder calls API; assign cashback to highest line (if eligible); clear cart & cashback on success
   const createOrder = async () => {
     if (!selectedAddress?._id) {
       alert("Please select a delivery address before placing order.");
@@ -98,22 +116,47 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
     }
 
     try {
+      const items = rows.map((r, idx) => {
+        const sp_each = Number(r.sp ?? 0) || 0;
+        const mrp_each = Number(r.mrp ?? r.MRP ?? r.sp ?? 0) || 0;
+        const quantity = Number(r.quantity) || 1;
+
+        let cashback_amount = 0;
+        if (appliedCashback > 0 && idx === maxIdx) {
+          // only highest line gets cashback, already capped
+          cashback_amount = appliedCashback;
+        }
+
+        return {
+          sku_id: r.sku_id,
+          quantity,
+          mrp_each,
+          sp_each,
+          cashback_amount,
+          delivery_amount: 0,
+        };
+      });
+
       const payload = {
         shipping_address_id: selectedAddress._id,
-        total_amount: Number(total.toFixed(2)),
-        items: rows.map((r) => ({
-          sku_id: r.sku_id,
-          quantity: Number(r.quantity) || 1,
-          mrp_each: Number(r.mrp ?? r.MRP ?? r.sp ?? 0) || 0,
-          sp_each: Number(r.sp ?? 0) || 0,
-          cashback_amount: 0,
-          delivery_amount: 0,
-        })),
+        total_amount: Number(total.toFixed(2)), // subtotal - appliedCashback
+        items,
       };
 
       const res = await api.post("/order/createOrder", payload, { withCredentials: true });
 
       if (res?.data?.ok) {
+        // ✅ Clear cart
+        setCartData({ items: [] });
+
+        // ✅ If cashback was used, clear it from context too
+        if (appliedCashback > 0) {
+          setCashbackData(0);
+        }
+
+        // (Optional) best-effort server sync of empty cart
+        api.post("/user/updateCart", { items: [], merge: false }, { withCredentials: true }).catch(() => {});
+
         const orderId = res?.data?.order?._id;
         setSuccessMsg(orderId ? `Order #${orderId} has been placed successfully.` : "Your order has been placed successfully.");
         setSuccessOpen(true);
@@ -154,9 +197,7 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
                     : "Select Address"}
                 </span>
                 <svg
-                  className={`w-5 h-5 inline float-right transition-transform duration-200 ${
-                    isDropdownOpen ? "rotate-0" : "-rotate-90"
-                  }`}
+                  className={`w-5 h-5 inline float-right transition-transform duration-200 ${isDropdownOpen ? "rotate-0" : "-rotate-90"}`}
                   xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#6B7280">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -218,9 +259,16 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
             </div>
 
             <div className="flex justify-between">
-              <p className="text-gray-600">Cashback</p>
+              <p className="text-gray-600">
+                Cashback
+                {!willApplyCashback && rawCashback > 0 ? (
+                  <span className="ml-1 text-xs text-gray-500">
+                    (usable only if any line ≥ {currency} {CASHBACK_THRESHOLD})
+                  </span>
+                ) : null}
+              </p>
               <p className="font-medium text-gray-800">
-                - {currency} {cashback.toFixed(2)}
+                - {currency} {appliedCashback.toFixed(2)}
               </p>
             </div>
 
@@ -237,7 +285,6 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
                 </p>
               </div>
 
-              {/* Savings line */}
               {mrpDiscount > 0 && (
                 <p className="mt-2 text-sm text-green-700">
                   You will save {currency} {mrpDiscount.toFixed(2)} on this order
@@ -248,15 +295,11 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
           </div>
         </div>
 
-        <button
-          onClick={createOrder}
-          className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700"
-        >
+        <button onClick={createOrder} className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700">
           Place Order
         </button>
       </div>
 
-      {/* Success Modal */}
       <SuccessModal open={successOpen} message={successMsg} onOK={handleSuccessOK} />
     </>
   );

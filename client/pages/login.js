@@ -29,7 +29,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState("phone"); // "phone" | "otp" | "newUser"
   const [phone, setPhone] = useState("");
-  const [countryCode, setCountryCode] = useState("+880");
+  const [countryCode, setCountryCode] = useState("+88");
 
   const redirectParam =
     typeof router.query.redirect === "string" ? router.query.redirect : "";
@@ -71,7 +71,7 @@ export default function LoginPage() {
           <div className="p-6 pt-22 space-y-4">
             {step === "phone" && (
               <PhoneLogin
-                defaultCode="+880"
+                defaultCode="+88"
                 onContinue={({ nextPhone, nextCode }) => {
                   setPhone(nextPhone);
                   setCountryCode(nextCode);

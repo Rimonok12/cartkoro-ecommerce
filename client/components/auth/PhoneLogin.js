@@ -4,17 +4,17 @@
 import { useState } from "react";
 
 const COUNTRY_CODES = [
-  { code: "+880", label: "BD (+880)" },
+  { code: "+88", label: "BD (+88)" },
 ];
 
-export default function PhoneLogin({ onContinue, defaultCode = "+880" }) {
+export default function PhoneLogin({ onContinue, defaultCode = "+88" }) {
   const [code, setCode] = useState(defaultCode);
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
 
   const digits = phone.replace(/\D/g, "");
   const isValidPhone =
-    code === "+880" ? /^\d{11}$/.test(digits) : /^\d{6,15}$/.test(digits);
+    code === "+88" ? /^\d{11}$/.test(digits) : /^\d{6,15}$/.test(digits);
 
   const sendOtp = async () => {
     if (!isValidPhone) return;

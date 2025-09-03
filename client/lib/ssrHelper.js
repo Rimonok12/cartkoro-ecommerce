@@ -52,7 +52,7 @@ export async function essentialsOnLoad(context) {
       props: {
         initialUserData: data.profile || {},
         initialCartData: data.cart || {},
-        initialCashbackData: data.cashback || {},
+        initialCashbackData: data.cashback || 0,
       },
     };
   } catch (err) {

@@ -101,12 +101,28 @@ const verifyOtp = async (req, res) => {
 
     await setHash(userKey, "profile", { firstName, is_admin: user.is_admin }, EXPIRY_SEC);
 
-    const existingCart = await Cart.findOne({ user_id: user._id });
-    await setHash(userKey, "cart", existingCart || { items: [] }, EXPIRY_SEC);
+    // ---- Cart: move to Redis, clear Mongo copy ----
+    const existingCart = await Cart.findOne({ user_id: user._id }).lean();
+    const cartItems = Array.isArray(existingCart?.items) ? existingCart.items : [];
+
+    await setHash(userKey, "cart", { items: cartItems }, EXPIRY_SEC);
     await Cart.deleteOne({ user_id: user._id });
 
-    const existingCashback = await Cashback.findOne({ user_id: user._id });
-    await setHash(userKey, "cashback", existingCashback || { amount: 0 }, EXPIRY_SEC);
+    // ---- Cashback: if new user, ensure wallet exists with 50 (idempotent) ----
+    if (isNewUser) {
+      // upsert so it only inserts when absent
+      await Cashback.updateOne(
+        { user_id: user._id },
+        { $setOnInsert: { amount: 50 } },
+        { upsert: true }
+      );
+    }
+
+    // Read latest cashback (after possible upsert) and cache it
+
+    const existingCashback = await Cashback.findOne({ user_id: user._id }).lean();
+    const cashbackAmount = Number(existingCashback?.amount) || 0;
+    await setHash(userKey, "cashback", cashbackAmount, EXPIRY_SEC);
 
     res.status(200).json({
       accessToken,
