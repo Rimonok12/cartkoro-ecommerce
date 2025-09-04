@@ -7,6 +7,7 @@ export default function App({ Component, pageProps }) {
       initialUserData={pageProps.initialUserData}
       initialCartData={pageProps.initialCartData}
       initialCashbackData={pageProps.initialCashbackData}
+      initialRecentAddress={pageProps.initialRecentAddress}
     >
       <Component {...pageProps} />
     </AppContextProvider>

@@ -16,6 +16,7 @@ const {
   getAddresses,
   editAddress,
   deleteAddress,
+  redisSetRecentAddress
 } = require("../controllers/addressController");
 const { auth } = require("../middleware/auth");
 
@@ -36,6 +37,8 @@ router.put("/deleteAddress/:addressId", auth, deleteAddress);
 
 router.post("/getProfileData", auth, getProfileData);
 router.put("/updateProfileData", auth, updateProfileData);
+
+router.post("/redisSetRecentAddress", redisSetRecentAddress);
 
 
 module.exports = router;

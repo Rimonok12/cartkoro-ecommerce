@@ -12,6 +12,8 @@ export const AppContextProvider = ({
   initialUserData = {},
   initialCartData = { items: [] },
   initialCashbackData = 0,
+  initialRecentAddress = {},
+  // initialRecentAddress: data.recentAddress || {},
 }) => {
   const currency = process.env.NEXT_PUBLIC_CURRENCY;
 
@@ -25,6 +27,7 @@ export const AppContextProvider = ({
   const [userData, setUserData] = useState(initialUserData);
   const [cartData, setCartData] = useState(parsedInitialCart);
   const [cashbackData, setCashbackData] = useState(initialCashbackData);
+  const [recentAddress, setRecentAddress] = useState(initialRecentAddress);
 
   // ---------- Logout ----------
   const logoutContext = () => {
@@ -89,6 +92,10 @@ export const AppContextProvider = ({
     // Cashback
     cashbackData,
     setCashbackData,
+
+    // Recent Address
+    recentAddress, 
+    setRecentAddress,
 
     // Global
     currency,

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/router"; // pages router
 import { useAppContext } from "@/context/AppContext";
 import api from "@/lib/axios";
 
@@ -32,12 +32,19 @@ const SuccessModal = ({ open, message, onOK }) => {
   );
 };
 
-const CASHBACK_THRESHOLD = 500; // ₹500 min per-line subtotal
+const CASHBACK_THRESHOLD = 500;
 
 const OrderSummary = ({ rows = [], subtotal = 0 }) => {
   const router = useRouter();
-  // 👇 we need setCashbackData so we can clear it on use
-  const { currency, getCartCount, cashbackData, setCartData, setCashbackData } = useAppContext();
+  const {
+    currency,
+    getCartCount,
+    cashbackData,
+    setCartData,
+    setCashbackData,
+    recentAddress,
+    setRecentAddress,
+  } = useAppContext();
 
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -46,23 +53,45 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
   const [successOpen, setSuccessOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState("Your order has been placed successfully.");
 
+  const pickById = (list, id) =>
+    list.find(a => String(a?._id) === String(id)) || null;
+
+  // load addresses then preselect from context.recentAddress
   useEffect(() => {
     (async () => {
       try {
         const res = await api.post("/user/getAddresses", {}, { withCredentials: true });
-        setUserAddresses(res?.data?.addresses || []);
+        const addrs = res?.data?.addresses || [];
+        setUserAddresses(addrs);
+        if (recentAddress?.id) {
+          const hit = pickById(addrs, recentAddress.id);
+          if (hit) {
+            setSelectedAddress(hit);
+          }
+        }
       } catch (e) {
         console.error("Error fetching addresses", e);
       }
     })();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleAddressSelect = (address) => {
+  const handleAddressSelect = async (address) => {
     setSelectedAddress(address);
     setIsDropdownOpen(false);
+
+    try {
+      await api.post(
+        "/user/redisSetRecentAddress",
+        { addressId: address?._id ?? null },
+        { withCredentials: true }
+      );
+      setRecentAddress?.({ id: String(address?._id) });
+    } catch (e) {
+      console.warn("Failed to persist recent address:", e?.message || e);
+    }
   };
 
-  // ---- Money (no tax) ----
+  // -------- Money calculations --------
   const totalMrp = useMemo(() => {
     return rows.reduce((sum, r) => {
       const mrp = toNumber(r?.mrp ?? r?.MRP ?? r?.listPrice ?? r?.priceBeforeDiscount ?? r?.sp, 0);
@@ -73,13 +102,8 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
 
   const mrpDiscount = Math.max(0, totalMrp - subtotal);
 
-  // ---- Cashback eligibility & application ----
   const rawCashback = toNumber(cashbackData, 0);
-
-  // Find highest sp*qty line; also check if any line meets threshold
-  let maxIdx = -1;
-  let maxVal = -1;
-  let hasEligibleLine = false;
+  let maxIdx = -1, maxVal = -1, hasEligibleLine = false;
 
   rows.forEach((r, idx) => {
     const sp = Number(r.sp ?? 0) || 0;
@@ -92,19 +116,17 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
     }
   });
 
-  // Apply cashback only if:
-  // - there *exists* a line with subtotal ≥ threshold
-  // - and cashback > 0
   const willApplyCashback = hasEligibleLine && rawCashback > 0;
-  // Cap cashback to the chosen line subtotal (guard)
-  const eligibleLineSubtotal = maxIdx >= 0 ? (Number(rows[maxIdx]?.sp ?? 0) || 0) * (Number(rows[maxIdx]?.quantity ?? 0) || 0) : 0;
+  const eligibleLineSubtotal =
+    maxIdx >= 0
+      ? (Number(rows[maxIdx]?.sp ?? 0) || 0) * (Number(rows[maxIdx]?.quantity ?? 0) || 0)
+      : 0;
   const appliedCashback = willApplyCashback ? Math.min(rawCashback, eligibleLineSubtotal) : 0;
 
-  // Totals reflect *applied* cashback only
   const total = Math.max(0, subtotal - appliedCashback);
   const totalDiscountPercent = totalMrp > 0 ? Math.round((mrpDiscount / totalMrp) * 100) : 0;
 
-  // 👉 createOrder calls API; assign cashback to highest line (if eligible); clear cart & cashback on success
+  // -------- Place Order --------
   const createOrder = async () => {
     if (!selectedAddress?._id) {
       alert("Please select a delivery address before placing order.");
@@ -123,7 +145,6 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
 
         let cashback_amount = 0;
         if (appliedCashback > 0 && idx === maxIdx) {
-          // only highest line gets cashback, already capped
           cashback_amount = appliedCashback;
         }
 
@@ -139,22 +160,16 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
 
       const payload = {
         shipping_address_id: selectedAddress._id,
-        total_amount: Number(total.toFixed(2)), // subtotal - appliedCashback
+        total_amount: Number(total.toFixed(2)),
         items,
       };
 
       const res = await api.post("/order/createOrder", payload, { withCredentials: true });
 
       if (res?.data?.ok) {
-        // ✅ Clear cart
         setCartData({ items: [] });
+        if (appliedCashback > 0) setCashbackData(0);
 
-        // ✅ If cashback was used, clear it from context too
-        if (appliedCashback > 0) {
-          setCashbackData(0);
-        }
-
-        // (Optional) best-effort server sync of empty cart
         api.post("/user/updateCart", { items: [], merge: false }, { withCredentials: true }).catch(() => {});
 
         const orderId = res?.data?.order?._id;
@@ -236,7 +251,7 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
 
           <hr className="border-gray-500/30 my-5" />
 
-          {/* Summary (no tax) */}
+          {/* Summary */}
           <div className="space-y-4">
             <div className="flex justify-between text-base font-medium">
               <p className="uppercase font-medium text-gray-600">
@@ -246,16 +261,12 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
 
             <div className="flex justify-between text-base font-medium">
               <p className="text-gray-600">Total MRP</p>
-              <p className="text-gray-800">
-                {currency} {totalMrp.toFixed(2)}
-              </p>
+              <p className="text-gray-800">{currency} {totalMrp.toFixed(2)}</p>
             </div>
 
             <div className="flex justify-between text-base font-medium">
               <p className="text-gray-600">MRP Discount</p>
-              <p className="text-gray-800">
-                - {currency} {mrpDiscount.toFixed(2)}
-              </p>
+              <p className="text-gray-800">- {currency} {mrpDiscount.toFixed(2)}</p>
             </div>
 
             <div className="flex justify-between">
@@ -267,9 +278,7 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
                   </span>
                 ) : null}
               </p>
-              <p className="font-medium text-gray-800">
-                - {currency} {appliedCashback.toFixed(2)}
-              </p>
+              <p className="font-medium text-gray-800">- {currency} {appliedCashback.toFixed(2)}</p>
             </div>
 
             <div className="flex justify-between">
@@ -280,9 +289,7 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
             <div className="border-t pt-3">
               <div className="flex justify-between text-lg md:text-xl font-medium">
                 <p>Total</p>
-                <p>
-                  {currency} {total.toFixed(2)}
-                </p>
+                <p>{currency} {total.toFixed(2)}</p>
               </div>
 
               {mrpDiscount > 0 && (

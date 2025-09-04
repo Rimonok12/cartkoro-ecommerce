@@ -45,7 +45,7 @@ export async function essentialsOnLoad(context) {
       }
     );
 
-    const data = res.data; // ✅ use res.data, not res.json()
+    const data = res.data; // use res.data, not res.json()
     console.log("data from essential", data)
 
     return {
@@ -53,6 +53,7 @@ export async function essentialsOnLoad(context) {
         initialUserData: data.profile || {},
         initialCartData: data.cart || {},
         initialCashbackData: data.cashback || 0,
+        initialRecentAddress: data.recentAddress || {},
       },
     };
   } catch (err) {

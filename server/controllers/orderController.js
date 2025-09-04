@@ -3,11 +3,11 @@ const mongoose = require('mongoose');
 const { Order, OrderItem, OrderStatus } = require('../models/orderModels.js');
 const { Cashback } = require("../models/userModels");
 
-
 const { ProductSku } = require('../models/productModels');
 
 const {
   setHash,
+  getHash,
   delHash
 } = require("../config/redisClient");
 

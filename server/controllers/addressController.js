@@ -5,8 +5,16 @@ const {
 const {
   UserAddress
 } = require("../models/userModels");
+const { Order } = require('../models/orderModels.js');
+const {
+  setHash,
+  getHash,
+  getAllHash,
+  delKey,
+} = require("../config/redisClient");
 
-// ➡️ Add address
+
+// Add address
 const addAddress = async (req, res) => {
   try {
     const user_id=req.user.userId;
@@ -57,7 +65,7 @@ const addAddress = async (req, res) => {
 };
 
 
-// ➡️ Get all addresses of user
+// Get all addresses of user
 const getAddresses = async (req, res) => {
   try {
     const user_id = req.user.userId;
@@ -77,7 +85,7 @@ const getAddresses = async (req, res) => {
   }
 };
 
-// ➡️ Edit address
+// Edit address
 const editAddress = async (req, res) => {
   try {
     const user_id = req.user.userId;
@@ -105,7 +113,7 @@ const editAddress = async (req, res) => {
   }
 };
 
-// ➡️ Delete address (soft delete: status = 0)
+// Delete address (soft delete: status = 0)
 const deleteAddress = async (req, res) => {
   try {
     const user_id = req.user.userId;
@@ -129,9 +137,45 @@ const deleteAddress = async (req, res) => {
 };
 
 
+const redisSetRecentAddress = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { addressId } = req.body || {};
+    const userKey = `user:${userId}`;
+
+    let idToStore = addressId;
+
+    // If no addressId is provided, fall back to the most recent order's shipping address
+    if (idToStore == null) {
+      const lastOrder = await Order
+        .findOne({ user_id: userId })
+        .sort({ createdAt: -1 })
+        .select({ shipping_address_id: 1 })
+        .lean();
+
+      if (!lastOrder?.shipping_address_id) {
+        // nothing to store; optionally clear the field
+        await delHash(userKey, 'recentAddress').catch(() => {});
+        return res.status(200).json({ ok: true, recentAddress: null });
+      }
+      idToStore = lastOrder.shipping_address_id;
+    }
+
+    await setHash(userKey, 'recentAddress', { id: String(idToStore) }, EXPIRY_SEC);
+    return res.status(200).json({ ok: true, recentAddress: { id: String(idToStore) } });
+  } catch (error) {
+    console.error('redisSetRecentAddress Error:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+};
+
+
 module.exports = {
   addAddress,
   getAddresses,
   editAddress,
   deleteAddress,
+  redisSetRecentAddress
 };

@@ -14,12 +14,14 @@ const {
   Cashback,
   UserSession,
 } = require("../models/userModels");
+const { Order } = require('../models/orderModels.js');
 const {
   setHash,
   getHash,
   getAllHash,
   delKey,
 } = require("../config/redisClient");
+
 
 // Send OTP
 const generateOtp = async (req, res) => {
@@ -108,6 +110,19 @@ const verifyOtp = async (req, res) => {
     await setHash(userKey, "cart", { items: cartItems }, EXPIRY_SEC);
     await Cart.deleteOne({ user_id: user._id });
 
+    // ---- Recent Address: set address id to Redis from last order ----
+    const lastOrder = await Order
+      .findOne({ user_id: user._id })
+      .sort({ createdAt: -1 })
+      .select({ shipping_address_id: 1 })
+      .lean();
+
+    if (!lastOrder?.shipping_address_id) {
+      await delHash(userKey, 'recentAddress').catch(() => {});
+    }
+    idToStore = lastOrder.shipping_address_id;
+    await setHash(userKey, 'recentAddress', { id: String(idToStore) }, EXPIRY_SEC);
+
     // ---- Cashback: if new user, ensure wallet exists with 50 (idempotent) ----
     if (isNewUser) {
       // upsert so it only inserts when absent
@@ -119,7 +134,6 @@ const verifyOtp = async (req, res) => {
     }
 
     // Read latest cashback (after possible upsert) and cache it
-
     const existingCashback = await Cashback.findOne({ user_id: user._id }).lean();
     const cashbackAmount = Number(existingCashback?.amount) || 0;
     await setHash(userKey, "cashback", cashbackAmount, EXPIRY_SEC);
@@ -181,68 +195,40 @@ const refresh = async (req, res) => {
 // ------------------- LOGOUT -------------------
 const logout = async (req, res) => {
   try {
-    const rawToken = req.cookies["CK-REF-T"];
-    if (!rawToken) return res.status(401).json({ error: "No refresh token" });
+    const rawToken = req.cookies['CK-REF-T'];
+
+    // Clear cookie no matter what, to be user-friendly
+    res.clearCookie('CK-REF-T', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+
+    if (!rawToken) {
+      return res.status(200).json({ message: 'Logged out' });
+    }
 
     const payload = verifyRefreshToken(rawToken);
-
     if (payload?.userId) {
       const userKey = `user:${payload.userId}`;
-      const cachedData = await getAllHash(userKey);
-      console.log("logout cachedData::", cachedData);
 
-      // Parse cart from Redis (Redis hash values are strings)
-      let parsedCart = null;
-      if (cachedData?.cart) {
-        try {
-          parsedCart = typeof cachedData.cart === "string"
-            ? JSON.parse(cachedData.cart)
-            : cachedData.cart;
-        } catch (e) {
-          console.warn("Failed to parse cached cart JSON on logout:", e);
-        }
-      }
-
-      // Only persist if we have a valid items array
-      if (parsedCart && Array.isArray(parsedCart.items)) {
-        const existingCart = await Cart.findOne({ user_id: payload.userId });
-
-        if (existingCart) {
-          // Update JUST the items array
-          existingCart.items = parsedCart.items;
-          await existingCart.save();
-        } else {
-          // Create a new cart doc with items
-          await Cart.create({
-            user_id: payload.userId,
-            items: parsedCart.items,
-          });
-        }
-      }
-
-      // clear redis
-      await delKey(userKey);
-
-      // clear refresh token from DB
-      const hashedToken = hashToken(req.cookies["CK-REF-T"]);
+      // Delete ALL Redis data for this user, main hash (profile, cart, cashback, recentAddress, etc.)
+      await delKey(userKey).catch(() => {});
+     
+      // Remove just this session from DB
+      const hashedToken = hashToken(rawToken);
       await UserSession.deleteOne({
         user_id: payload.userId,
         refresh_token: hashedToken,
-      });
+      }).catch(() => {});
     }
 
-    // clear cookie
-    res.clearCookie("CK-REF-T", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/",
-    });
-
-    res.json({ message: "Logged out successfully" });
+    return res.json({ message: 'Logged out successfully' });
   } catch (err) {
-    console.error("logout error:", err);
-    res.status(500).json({ error: err.message });
+    console.error('logout error:', err);
+    // Cookie was already cleared above; still return 200 to avoid trapping the user
+    return res.status(200).json({ message: 'Logged out' });
   }
 };
 
@@ -317,6 +303,7 @@ const register = async (req, res) => {
 };
 
 
+// ------------------USER's REDIS DATA--------------------
 const getUserRedisData = async (req, res) => {
   try {
     const rawToken = req.cookies["CK-REF-T"];
@@ -336,6 +323,9 @@ const getUserRedisData = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+
+// detailed data___________________________________________
 
 const getProfileData = async (req, res) => {
   try {
@@ -358,6 +348,7 @@ const getProfileData = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
+
 
 const updateProfileData = async (req, res) => {
   try {
