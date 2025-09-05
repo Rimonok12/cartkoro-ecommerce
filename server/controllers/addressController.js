@@ -163,7 +163,7 @@ const redisSetRecentAddress = async (req, res) => {
       idToStore = lastOrder.shipping_address_id;
     }
 
-    await setHash(userKey, 'recentAddress', { id: String(idToStore) }, EXPIRY_SEC);
+    await setHash(userKey, 'recentAddress', { id: String(idToStore) }, Number(process.env.EXPIRY_SEC));
     return res.status(200).json({ ok: true, recentAddress: { id: String(idToStore) } });
   } catch (error) {
     console.error('redisSetRecentAddress Error:', error);

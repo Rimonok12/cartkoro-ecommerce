@@ -84,21 +84,6 @@ const cashbackSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const userSessionSchema = new mongoose.Schema(
-  {
-    user_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    refresh_token: { type: String, required: true }, // optionally hash this
-    expires_at: { type: Date, required: true },
-    device_info: { type: String },
-    ip_address: { type: String },
-  },
-  { timestamps: true }
-);
-
 module.exports = {
   User: mongoose.model("User", userSchema),
   UserAddress: mongoose.model("UserAddress", addressSchema),
@@ -106,5 +91,4 @@ module.exports = {
   Reference: mongoose.model("Reference", referenceSchema),
   Cart: mongoose.model("Cart", cartSchema),
   Cashback: mongoose.model("Cashback", cashbackSchema),
-  UserSession: mongoose.model("UserSession", userSessionSchema),
 };

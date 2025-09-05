@@ -2,6 +2,10 @@
 const Redis = require("ioredis");
 const redis = new Redis(process.env.REDIS_URI);
 
+// for cli
+// brew install redis
+// redis-cli -u "redis://default:BubmDiGZUiJsLq892VOF2NNqfMBxPqZL@redis-19926.c305.ap-south-1-1.ec2.redns.redis-cloud.com:19926"
+
 const PROJECT_PREFIX = process.env.REDIS_PREFIX || "";
 
 const prefixedKey = (key) => `${PROJECT_PREFIX}${key}`;
