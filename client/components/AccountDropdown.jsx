@@ -33,7 +33,10 @@ export default function AccountDropdown() {
   }, []);
 
   const handleButton = () => {
-    const hasUser = !!(userData && (userData._id || userData.id || userData.firstName));
+    const hasUser = !!(
+      userData &&
+      (userData._id || userData.id || userData.firstName)
+    );
     if (!hasUser) {
       router.push("/login?redirect=account/profile");
       return;
@@ -72,18 +75,20 @@ export default function AccountDropdown() {
           <path d="M5 19c1.8-3 5.2-3 7-3s5.2 0 7 3" />
         </svg>
         <span className="text-sm">
-          {userName ? `Hi, ${userName}` : "Account"}
+          {userName ? `Hi, ${userName}` : "Login"}
         </span>
-        <svg
-          className={`h-4 w-4 text-gray-700 transition-transform ${
-            open ? "rotate-180" : ""
-          }`}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.94l3.71-3.71a.75.75 0 1 1 1.06 1.06l-4.24 4.24a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08z" />
-        </svg>
+        {userName && (
+          <svg
+            className={`h-4 w-4 text-gray-700 transition-transform ${
+              open ? "rotate-180" : ""
+            }`}
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.94l3.71-3.71a.75.75 0 1 1 1.06 1.06l-4.24 4.24a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08z" />
+          </svg>
+        )}
       </button>
 
       {userName && open && (

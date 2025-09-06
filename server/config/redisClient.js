@@ -39,6 +39,11 @@ const delKey = async (key) => {
   return redis.del(prefixedKey(key));
 };
 
+const hashExists = async (key, field) => {
+  const n = await redis.hexists(prefixedKey(key), field); // returns 1 or 0
+  return n === 1;
+};
+
 const connectRedis = async () => {
   try {
     await redis.ping();
@@ -56,5 +61,6 @@ module.exports = {
   getAllHash,
   delHash,
   delKey,
+  hashExists,
   raw: redis,
 };
