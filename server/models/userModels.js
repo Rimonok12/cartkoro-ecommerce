@@ -6,7 +6,9 @@ const userSchema = new mongoose.Schema(
     full_name: { type: String },
     email: { type: String },
     phone_number: { type: String, required: true, unique: true },
+    is_super_admin: { type: Boolean, default: false },
     is_admin: { type: Boolean, default: false },
+    is_seller: { type: Boolean, default: false },
     profile_pic: { type: String },
     referral_code: { type: String, unique: true, sparse: true },
     status: Number,
@@ -27,23 +29,34 @@ const referenceSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const addressSchema = new mongoose.Schema({
-  user_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
+const addressSchema = new mongoose.Schema(
+  {
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    label: { type: String, enum: ["Home", "Work", "Other"], default: "Home" },
+    full_name: { type: String, required: true },
+    phone: { type: String, required: true },
+    address: { type: String, required: true }, // House, Road, Area
+    district_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "District",
+      required: true,
+    },
+    upazila_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Upazila",
+      required: true,
+    },
+    postcode: { type: String, required: true },
+    landmark: { type: String },
+    alternate_phone: { type: String },
+    status: { type: String, default: 1 },
   },
-  label: { type: String, enum: ["Home", "Work", "Other"], default: "Home" },
-  full_name: { type: String, required: true },
-  phone: { type: String, required: true },
-  address: { type: String, required: true }, // House, Road, Area
-  district_id: { type: mongoose.Schema.Types.ObjectId, ref: "District", required: true },
-  upazila_id: { type: mongoose.Schema.Types.ObjectId, ref: "Upazila", required: true },
-  postcode: { type: String, required: true },
-  landmark: { type: String }, 
-  alternate_phone: { type: String },
-  status:  { type: String, default: 1  },
-}, { timestamps: true });
+  { timestamps: true }
+);
 
 const customerOtpSchema = new mongoose.Schema(
   {

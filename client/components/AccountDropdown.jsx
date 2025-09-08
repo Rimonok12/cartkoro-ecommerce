@@ -13,7 +13,9 @@ export default function AccountDropdown() {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const userName = userData?.firstName || "";
+  const isSuperAdmin = Boolean(userData?.is_super_admin);
   const isAdmin = Boolean(userData?.is_admin);
+  const isSeller = Boolean(userData?.is_seller);
 
   // Close on outside click + Esc
   useEffect(() => {
@@ -143,7 +145,7 @@ export default function AccountDropdown() {
               <span>Manage addresses</span>
             </Item>
 
-            <Item href="/orders">
+            <Item href="/my-orders">
               <svg
                 className="h-5 w-5 text-gray-500"
                 viewBox="0 0 24 24"
@@ -160,7 +162,35 @@ export default function AccountDropdown() {
               <span>My orders</span>
             </Item>
 
+            {isSuperAdmin && (
+              <Item href="/seller">
+                <svg
+                  className="h-5 w-5 text-gray-500"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path strokeWidth="2" d="M4 13h16M4 9h16M4 17h10" />
+                </svg>
+                <span>Super Admin dashboard</span>
+              </Item>
+            )}
+
             {isAdmin && (
+              <Item href="/seller">
+                <svg
+                  className="h-5 w-5 text-gray-500"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path strokeWidth="2" d="M4 13h16M4 9h16M4 17h10" />
+                </svg>
+                <span>Admin dashboard</span>
+              </Item>
+            )}
+
+            {isSeller && (
               <Item href="/seller">
                 <svg
                   className="h-5 w-5 text-gray-500"

@@ -5,22 +5,10 @@ import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
 import Loading from "@/components/Loading";
 import Layout from "@/components/seller/Layout"; // <-- reuse seller layout
-import { essentialsOnLoad } from "@/lib/ssrHelper";
+import { essentialsOnLoad, requireB2B } from "@/lib/ssrHelper";
 
 export async function getServerSideProps(context) {
-  const essentials = await essentialsOnLoad(context);
-
-  // redirect if not logged in
-  if (!essentials.props.initialUserData) {
-    return { redirect: { destination: "/", permanent: false } };
-  }
-
-  // redirect if not seller
-  if (essentials.props.initialUserData.is_admin === false) {
-    return { redirect: { destination: "/", permanent: false } };
-  }
-
-  return { props: { ...essentials.props } };
+  return requireB2B(context);
 }
 
 const Orders = () => {

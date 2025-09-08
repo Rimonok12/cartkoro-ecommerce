@@ -17,6 +17,27 @@ categorySchema.pre("validate", function (next) {
 
 categorySchema.index({ level: 1, name: 1 }, { unique: true });
 
+/* ======================= Brand (NEW) ======================= */
+/**
+ * Brands are scoped to a category (e.g., "Mobiles" -> Apple, Samsung)
+ * Enforces uniqueness of brand name within a category.
+ */
+const brandSchema = new mongoose.Schema(
+  {
+    category_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+      index: true,
+    },
+    name: { type: String, required: true, trim: true },
+  },
+  { timestamps: true, versionKey: false }
+);
+
+// unique brand name per category (case-insensitive if your collection collation is set; otherwise normalize below)
+brandSchema.index({ category_id: 1, name: 1 }, { unique: true });
+
 /* ======================= Variant Definition ======================= */
 /**
  * Defines what variants a category supports
@@ -50,6 +71,7 @@ const productSchema = new mongoose.Schema(
     },
     name: { type: String, required: true, trim: true },
     description: { type: String },
+    brand: { type: mongoose.Schema.Types.ObjectId, ref: "Brand", index: true },
     status: { type: Number, default: 1 },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -99,12 +121,14 @@ productSkuSchema.index({ SP: 1 });
 
 /* ======================= Exports ======================= */
 const Category = mongoose.model("Category", categorySchema);
+const Brand = mongoose.model("Brand", brandSchema);
 const Product = mongoose.model("Product", productSchema);
 const Variant = mongoose.model("Variant", variantSchema);
 const ProductSku = mongoose.model("ProductSku", productSkuSchema);
 
 module.exports = {
   Category,
+  Brand,
   Product,
   Variant,
   ProductSku,

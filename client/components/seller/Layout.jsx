@@ -1,17 +1,18 @@
 import Layout from "@/components/seller/Layout";
-import { essentialsOnLoad } from "@/lib/ssrHelper";
+import { essentialsOnLoad, requireB2B } from "@/lib/ssrHelper";
 
 export async function getServerSideProps(context) {
-  const essentials = await essentialsOnLoad(context);
+  // const essentials = await essentialsOnLoad(context);
 
-  if (
-    !essentials.props.initialUserData ||
-    essentials.props.initialUserData.is_admin === false
-  ) {
-    return { redirect: { destination: "/", permanent: false } };
-  }
+  // if (
+  //   !essentials.props.initialUserData ||
+  //   essentials.props.initialUserData.is_admin === false
+  // ) {
+  //   return { redirect: { destination: "/", permanent: false } };
+  // }
 
-  return { props: { ...essentials.props } };
+  // return { props: { ...essentials.props } };
+  return requireB2B(context); // defaults to anyOf: ["is_seller","is_admin","is_super_admin"]
 }
 
 export default function SellerDashboard(props) {

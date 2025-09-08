@@ -14,6 +14,7 @@
     "@clerk/nextjs": "^6.29.0",
     "@emailjs/browser": "^4.4.1",
     "axios": "^1.11.0",
+    "framer-motion": "^12.23.12",
     "inngest": "^3.40.1",
     "lucide-react": "^0.539.0",
     "mongoose": "^8.17.1",

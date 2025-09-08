@@ -5,13 +5,13 @@ import { useAppContext } from "@/context/AppContext";
 
 /* --------------------------- SSR (do not change) --------------------------- */
 export async function getServerSideProps(context) {
-  // redirect to /login if no refresh token
-  const auth = await requireAuth(context);
-  if ("redirect" in auth) return auth;
-
-  // hydrate initialUserData / initialCartData / initialCashbackData from Redis
+  const { req } = context;
+  const cookies = req.cookies || {};
+  if (!cookies["CK-REF-T"]) {
+    return { redirect: { destination: "/login", permanent: false } };
+  }
   const essentials = await essentialsOnLoad(context);
-  return { props: { ...(essentials.props || {}) } };
+  return { props: { ...essentials.props } };
 }
 
 /* ------------------------------- Page UI ---------------------------------- */

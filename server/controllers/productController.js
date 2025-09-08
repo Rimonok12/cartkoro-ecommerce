@@ -1,5 +1,6 @@
 const {
   Category,
+  Brand,
   Product,
   Variant,
   ProductSku,
@@ -63,6 +64,55 @@ const getCategories = async (_req, res) => {
         _id: ch._id,
         name: ch.name,
       })),
+    }));
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+/* ======================= BRAND ======================= */
+const createBrand = async (req, res) => {
+  try {
+    let { categoryId, name } = req.body;
+
+    if (!categoryId || !name) {
+      return res
+        .status(400)
+        .json({ message: "categoryId and name are required" });
+    }
+
+    const cat = await Category.findById(categoryId).select("_id");
+    if (!cat) return res.status(404).json({ error: "Category not found" });
+
+    const brand = await Brand.create({
+      category_id: categoryId,
+      name: name.trim(),
+    });
+    return res.status(201).json(brand);
+  } catch (err) {
+    return res.status(400).json({ message: err.message });
+  }
+};
+
+const getBrands = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    if (!categoryId) {
+      return res.status(400).json({ message: "categoryId is required" });
+    }
+
+    const brands = await Brand.find(
+      { category_id: categoryId },
+      { _id: 1, name: 1, values: 1 } // only select required fields
+    ).lean();
+
+    // format response
+    const result = brands.map((v) => ({
+      brandId: v._id,
+      name: v.name,
     }));
 
     return res.json(result);
@@ -330,6 +380,8 @@ const getProductBySkuId = async (req, res) => {
 module.exports = {
   createCategory,
   getCategories,
+  createBrand,
+  getBrands,
   createVariant,
   getVariants,
   createProduct,

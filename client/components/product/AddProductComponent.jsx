@@ -5,7 +5,7 @@ import ErrorBanner from "@/components/product/ErrorBanner";
 import SuccessModal from "@/components/SuccessModal";
 import CategorySelector from "@/components/product/CategorySelector";
 import VariantList from "@/components/product/VariantList";
-import api from '@/lib/axios';
+import api from "@/lib/axios";
 
 const EMPTY_ROW = () => ({
   values: {},
@@ -13,7 +13,7 @@ const EMPTY_ROW = () => ({
   SP: "",
   totalStocks: "",
   thumbFile: null,
-  galleryFiles: [],             // <-- start empty; GalleryPicker shows one "Add" tile
+  galleryFiles: [],
   uploadKey: Math.random(),
   discountPct: 0,
 });
@@ -23,12 +23,16 @@ const AddProductComponent = () => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
-  // category / variants
+  // category / variants / brands
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [subCategories, setSubCategories] = useState([]);
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
   const [variants, setVariants] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [selectedBrand, setSelectedBrand] = useState("");
+
+  // variant rows
   const [rows, setRows] = useState([EMPTY_ROW()]);
 
   // ui
@@ -37,15 +41,19 @@ const AddProductComponent = () => {
   const [successOpen, setSuccessOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Fetch categories
+  /* ======================= Fetch categories ======================= */
   useEffect(() => {
     let ignore = false;
     const abort = new AbortController();
     (async () => {
       try {
-        const res = await fetch("/api/product/getCategories", { signal: abort.signal });
+        const res = await fetch("/api/product/getCategories", {
+          signal: abort.signal,
+        });
         const data = await res.json();
-        if (!ignore && !data.error) setCategories(Array.isArray(data) ? data : []);
+        if (!ignore && !data.error) {
+          setCategories(Array.isArray(data) ? data : []);
+        }
       } catch (err) {
         if (!ignore) console.error("Error fetching categories:", err);
       }
@@ -56,14 +64,14 @@ const AddProductComponent = () => {
     };
   }, []);
 
-  // Category change -> subcategories + reset sub category
+  /* ======================= Category change -> subcategories reset ======================= */
   useEffect(() => {
     const selected = categories.find((c) => c._id === selectedCategory);
     setSubCategories(selected?.children?.length ? selected.children : []);
     setSelectedSubCategory("");
   }, [selectedCategory, categories]);
 
-  // Fetch variants when (sub)category changes
+  /* ======================= Fetch variants when (sub)category changes ======================= */
   useEffect(() => {
     const categoryId = selectedSubCategory || selectedCategory;
     if (!categoryId) {
@@ -75,7 +83,10 @@ const AddProductComponent = () => {
     const abort = new AbortController();
     (async () => {
       try {
-        const res = await fetch(`/api/product/getVariants?categoryId=${categoryId}`, { signal: abort.signal });
+        const res = await fetch(
+          `/api/product/getVariants?categoryId=${categoryId}`,
+          { signal: abort.signal }
+        );
         const data = await res.json();
         if (!ignore && !data.error) {
           setVariants(Array.isArray(data) ? data : []);
@@ -91,7 +102,45 @@ const AddProductComponent = () => {
     };
   }, [selectedSubCategory, selectedCategory]);
 
-  // Per-row handlers
+  /* ======================= Fetch brands when (sub)category changes ======================= */
+  useEffect(() => {
+    const categoryId = selectedSubCategory || selectedCategory;
+    if (!categoryId) {
+      setBrands([]);
+      setSelectedBrand("");
+      return;
+    }
+    let ignore = false;
+    const abort = new AbortController();
+    (async () => {
+      try {
+        // Using your requested route: /api/product/getBrands
+        const res = await fetch(
+          `/api/product/getBrands?categoryId=${categoryId}`,
+          { signal: abort.signal }
+        );
+        const data = await res.json();
+        if (!ignore && !data.error) {
+          // Accept either { items: [...] } or a plain array
+          const list = Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data)
+            ? data
+            : [];
+          setBrands(list);
+          setSelectedBrand("");
+        }
+      } catch (err) {
+        if (!ignore) console.error("Error fetching brands:", err);
+      }
+    })();
+    return () => {
+      ignore = true;
+      abort.abort();
+    };
+  }, [selectedSubCategory, selectedCategory]);
+
+  /* ======================= Per-row handlers ======================= */
   const handleVariantChange = (rowIdx, variantId, value) => {
     setRows((prev) => {
       const next = [...prev];
@@ -109,7 +158,8 @@ const AddProductComponent = () => {
       row[field] = value;
       const mrp = parseFloat(row.MRP || "0");
       const sp = parseFloat(row.SP || "0");
-      row.discountPct = !mrp || !sp || sp > mrp ? 0 : Math.round(((mrp - sp) / mrp) * 100);
+      row.discountPct =
+        !mrp || !sp || sp > mrp ? 0 : Math.round(((mrp - sp) / mrp) * 100);
       next[rowIdx] = row;
       return next;
     });
@@ -118,19 +168,24 @@ const AddProductComponent = () => {
   const handleThumbChange = (rowIdx, e) => {
     const file = e.target.files?.[0] || null;
     setRows((prev) =>
-      prev.map((r, i) => (i === rowIdx ? { ...r, thumbFile: file, uploadKey: Math.random() } : r))
+      prev.map((r, i) =>
+        i === rowIdx ? { ...r, thumbFile: file, uploadKey: Math.random() } : r
+      )
     );
   };
 
-  // 🔧 Dynamically grow gallery array so user can add up to 10 images
+  // Dynamically grow gallery array so user can add up to 10 images
   const handleGalleryChange = (rowIdx, index, e) => {
     const file = e.target.files?.[0] || null;
     setRows((prev) =>
       prev.map((r, i) => {
         if (i !== rowIdx) return r;
-        const nextGallery = Array.isArray(r.galleryFiles) ? [...r.galleryFiles] : [];
+        const nextGallery = Array.isArray(r.galleryFiles)
+          ? [...r.galleryFiles]
+          : [];
         if (index >= nextGallery.length) {
-          for (let j = nextGallery.length; j <= index; j++) nextGallery.push(null);
+          for (let j = nextGallery.length; j <= index; j++)
+            nextGallery.push(null);
         }
         nextGallery[index] = file;
         return { ...r, galleryFiles: nextGallery };
@@ -144,11 +199,12 @@ const AddProductComponent = () => {
         i === rowIdx
           ? {
               ...r,
-              galleryFiles: r.galleryFiles.map((f, j) => (j === index ? null : f)).filter((x, j, arr) => {
-                // optional: trim trailing nulls for cleanliness
-                if (j === arr.length - 1 && x === null) return false;
-                return true;
-              }),
+              galleryFiles: r.galleryFiles
+                .map((f, j) => (j === index ? null : f))
+                .filter((x, j, arr) => {
+                  if (j === arr.length - 1 && x === null) return false;
+                  return true;
+                }),
             }
           : r
       )
@@ -156,51 +212,79 @@ const AddProductComponent = () => {
   };
 
   const addRow = () => setRows((prev) => [...prev, EMPTY_ROW()]);
-  const removeRow = (idx) => setRows((prev) => prev.filter((_, i) => i !== idx));
+  const removeRow = (idx) =>
+    setRows((prev) => prev.filter((_, i) => i !== idx));
 
-  // Validation
+  /* ======================= Validation ======================= */
   const validateForm = () => {
     setError("");
     if (!name.trim()) return setError("Please enter a product name."), false;
-    if (!description.trim()) return setError("Please enter a product description."), false;
+    if (!description.trim())
+      return setError("Please enter a product description."), false;
+
     const categoryId = selectedSubCategory || selectedCategory;
-    if (!categoryId) return setError("Please choose a category or subcategory."), false;
+    if (!categoryId)
+      return setError("Please choose a category or subcategory."), false;
+
+    if (!selectedBrand) return setError("Please select a brand."), false;
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       for (const v of variants) {
         if (!row?.values?.[v.variantId]) {
-          return setError(`Please select ${v.name} for Variant #${i + 1}.`), false;
+          return (
+            setError(`Please select ${v.name} for Variant #${i + 1}.`), false
+          );
         }
       }
       const mrp = Number(row.MRP);
       const sp = Number(row.SP);
       const stock = Number(row.totalStocks);
-      if (!mrp || mrp <= 0) return setError(`Enter a valid MRP for Variant #${i + 1}.`), false;
-      if (!sp || sp <= 0) return setError(`Enter a valid selling price for Variant #${i + 1}.`), false;
-      if (sp > mrp) return setError(`Selling price cannot be greater than MRP for Variant #${i + 1}.`), false;
+      if (!mrp || mrp <= 0)
+        return setError(`Enter a valid MRP for Variant #${i + 1}.`), false;
+      if (!sp || sp <= 0)
+        return (
+          setError(`Enter a valid selling price for Variant #${i + 1}.`), false
+        );
+      if (sp > mrp)
+        return (
+          setError(
+            `Selling price cannot be greater than MRP for Variant #${i + 1}.`
+          ),
+          false
+        );
       if (!Number.isInteger(stock) || stock < 0)
-        return setError(`Enter a valid total stock for Variant #${i + 1}.`), false;
-      if (!row.thumbFile) return setError(`Please add a thumbnail image for Variant #${i + 1}.`), false;
+        return (
+          setError(`Enter a valid total stock for Variant #${i + 1}.`), false
+        );
+      if (!row.thumbFile)
+        return (
+          setError(`Please add a thumbnail image for Variant #${i + 1}.`), false
+        );
       if (row.galleryFiles.length > 10)
-        return setError(`You can upload up to 10 images for Variant #${i + 1}.`), false;
+        return (
+          setError(`You can upload up to 10 images for Variant #${i + 1}.`),
+          false
+        );
     }
 
     return true;
   };
 
-  // Reset
+  /* ======================= Reset ======================= */
   const resetForm = () => {
     setName("");
     setDescription("");
     setSelectedCategory("");
     setSelectedSubCategory("");
     setVariants([]);
+    setBrands([]);
+    setSelectedBrand("");
     setRows([EMPTY_ROW()]);
     setError("");
   };
 
-  // Submit
+  /* ======================= Submit ======================= */
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -212,10 +296,17 @@ const AddProductComponent = () => {
       // Upload images per-variant row and build the payload
       const rowsPayload = [];
       for (const row of rows) {
-        const thumbnail_img = await s3Upload(row.thumbFile, "/api/s3/productImgUpload");
+        const thumbnail_img = await s3Upload(
+          row.thumbFile,
+          "/api/s3/productImgUpload"
+        );
         const galleryToUpload = row.galleryFiles.filter(Boolean);
         const side_imgs = galleryToUpload.length
-          ? await Promise.all(galleryToUpload.map((f) => s3Upload(f, "/api/s3/productImgUpload")))
+          ? await Promise.all(
+              galleryToUpload.map((f) =>
+                s3Upload(f, "/api/s3/productImgUpload")
+              )
+            )
           : [];
 
         rowsPayload.push({
@@ -228,19 +319,24 @@ const AddProductComponent = () => {
         });
       }
 
-      const res = await api.post('/product/createProduct', {
-        categoryId,
-        name: name.trim(),
-        description: description.trim(),
-        variantRows: rowsPayload,
-      }, { withCredentials: true });
+      const res = await api.post(
+        "/product/createProduct",
+        {
+          categoryId,
+          brandId: selectedBrand, // included in payload
+          name: name.trim(),
+          description: description.trim(),
+          variantRows: rowsPayload,
+        },
+        { withCredentials: true }
+      );
 
       const data = res.data;
-      setSuccessMsg(data?.message);
+      setSuccessMsg(data?.message || "Product created");
       setSuccessOpen(true);
     } catch (err) {
       console.error("Error creating product:", err);
-      setError(err?.message || "Server error");
+      setError(err?.response?.data?.error || err?.message || "Server error");
     } finally {
       setLoading(false);
     }
@@ -248,7 +344,10 @@ const AddProductComponent = () => {
 
   return (
     <div className="flex-1 min-h-screen flex flex-col items-center bg-gradient-to-b from-white to-gray-50">
-      <form onSubmit={handleSubmit} className="md:p-10 p-4 space-y-6 w-full max-w-3xl">
+      <form
+        onSubmit={handleSubmit}
+        className="md:p-10 p-4 space-y-6 w-full max-w-3xl"
+      >
         <h1 className="text-2xl font-semibold tracking-tight">Add Product</h1>
         <ErrorBanner message={error} />
 
@@ -274,7 +373,7 @@ const AddProductComponent = () => {
           />
         </div>
 
-        {/* Category */}
+        {/* Category + Subcategory + Brand (inline, compact) */}
         <CategorySelector
           categories={categories}
           selectedCategory={selectedCategory}
@@ -282,6 +381,9 @@ const AddProductComponent = () => {
           subCategories={subCategories}
           selectedSubCategory={selectedSubCategory}
           setSelectedSubCategory={setSelectedSubCategory}
+          brands={brands}
+          selectedBrand={selectedBrand}
+          setSelectedBrand={setSelectedBrand}
         />
 
         {/* Variant boxes (each contains selectors + price + images) */}
@@ -306,6 +408,13 @@ const AddProductComponent = () => {
           >
             {loading ? "Saving..." : "Add Product"}
           </button>
+          <button
+            type="button"
+            onClick={resetForm}
+            className="px-6 py-2.5 bg-gray-200 text-gray-800 font-medium rounded-lg"
+          >
+            Reset
+          </button>
         </div>
       </form>
 
@@ -319,6 +428,8 @@ const AddProductComponent = () => {
           setSelectedCategory("");
           setSelectedSubCategory("");
           setVariants([]);
+          setBrands([]);
+          setSelectedBrand("");
           setRows([EMPTY_ROW()]);
           setError("");
         }}

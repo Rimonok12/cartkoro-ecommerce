@@ -46,7 +46,7 @@ export async function essentialsOnLoad(context) {
     );
 
     const data = res.data; // use res.data, not res.json()
-    console.log("data from essential", data)
+    console.log("data from essential", data);
 
     return {
       props: {
@@ -60,4 +60,29 @@ export async function essentialsOnLoad(context) {
     console.error("Error in essentialsOnLoad:", err);
     return { props: {} };
   }
+}
+
+export async function requireB2B(
+  context,
+  { anyOf = ["is_seller", "is_admin", "is_super_admin"], redirectTo = "/" } = {}
+) {
+  // Get essentials (and implicitly ensure a valid refresh token)
+  const essentials = await essentialsOnLoad(context);
+
+  const profile = essentials?.props?.initialUserData || {};
+  // profile contains only role keys that are true — so we just test for presence
+  const allowed =
+    Array.isArray(anyOf) && anyOf.some((k) => Boolean(profile[k]));
+
+  if (!allowed) {
+    return {
+      redirect: {
+        destination: redirectTo,
+        permanent: false,
+      },
+    };
+  }
+
+  // Allowed: pass through all essentials props to the page
+  return { props: { ...essentials.props } };
 }

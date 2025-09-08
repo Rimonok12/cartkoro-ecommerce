@@ -4,26 +4,11 @@ import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
 import Footer from "@/components/seller/Footer";
 import Loading from "@/components/Loading";
-import { essentialsOnLoad } from "@/lib/ssrHelper";
+import { essentialsOnLoad, requireB2B } from "@/lib/ssrHelper";
 import { useRouter } from "next/router";
 
 export async function getServerSideProps(context) {
-  const essentials = await essentialsOnLoad(context);
-  if (!essentials.props.initialUserData) {
-    return {
-      redirect: { destination: "/", permanent: false },
-    };
-  }
-  if (essentials.props.initialUserData.is_admin === false) {
-    return {
-      redirect: { destination: "/", permanent: false },
-    };
-  }
-  return {
-    props: {
-      ...essentials.props,
-    },
-  };
+  return requireB2B(context);
 }
 
 export default function ProductList() {
