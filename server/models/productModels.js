@@ -71,7 +71,11 @@ const productSchema = new mongoose.Schema(
     },
     name: { type: String, required: true, trim: true },
     description: { type: String },
-    brand: { type: mongoose.Schema.Types.ObjectId, ref: "Brand", index: true },
+    brandId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Brand",
+      index: true,
+    },
     status: { type: Number, default: 1 },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -119,12 +123,37 @@ productSkuSchema.index(
 );
 productSkuSchema.index({ SP: 1 });
 
+/* ======================= Category Margin ======================= */
+/**
+ * One active margin record per category.
+ * If present (and active), createProduct will apply these percentages to
+ * incoming MRP/SP in variantRows: value * (1 + percent/100).
+ */
+const categoryMarginSchema = new mongoose.Schema(
+  {
+    category_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+      unique: true,
+      index: true,
+    },
+    sp_percent: { type: Number, default: 0, min: -100, max: 1000 },
+    mrp_percent: { type: Number, default: 0, min: -100, max: 1000 },
+    is_active: { type: Boolean, default: true },
+  },
+  { timestamps: true, versionKey: false }
+);
+
+categoryMarginSchema.index({ category_id: 1, is_active: 1 });
+
 /* ======================= Exports ======================= */
 const Category = mongoose.model("Category", categorySchema);
 const Brand = mongoose.model("Brand", brandSchema);
 const Product = mongoose.model("Product", productSchema);
 const Variant = mongoose.model("Variant", variantSchema);
 const ProductSku = mongoose.model("ProductSku", productSkuSchema);
+const CategoryMargin = mongoose.model("CategoryMargin", categoryMarginSchema);
 
 module.exports = {
   Category,
@@ -132,4 +161,5 @@ module.exports = {
   Product,
   Variant,
   ProductSku,
+  CategoryMargin,
 };

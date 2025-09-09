@@ -1,14 +1,13 @@
-import Head from 'next/head';
-import Image from 'next/image';
-import Link from 'next/link';
+import Head from "next/head";
+import Image from "next/image";
+import Link from "next/link";
 
 export default function AboutPage() {
   return (
     <>
       <Head>
-
         {/* <h1> hello Rimon-shachi</h1> */}
-        <title>About Us — CartKoro</title>
+        <title>About Us — CartKoro.com</title>
         <meta
           name="description"
           content="CartKoro is an e-commerce company based in Comilla, Bangladesh. We deliver authentic products, fast shipping, and best prices across Bangladesh."

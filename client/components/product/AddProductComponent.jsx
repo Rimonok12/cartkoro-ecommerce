@@ -120,14 +120,21 @@ const AddProductComponent = () => {
           { signal: abort.signal }
         );
         const data = await res.json();
+        console.log("data::", data);
         if (!ignore && !data.error) {
-          // Accept either { items: [...] } or a plain array
-          const list = Array.isArray(data?.items)
+          // Accept either { items: [...] } or a plain array; normalize to { id, name }
+          const rawList = Array.isArray(data?.items)
             ? data.items
             : Array.isArray(data)
             ? data
             : [];
-          setBrands(list);
+          const normalized = rawList
+            .map((b) => ({
+              id: b.brandId || b._id || b.id,
+              name: b.name,
+            }))
+            .filter((b) => b.id && b.name);
+          setBrands(normalized);
           setSelectedBrand("");
         }
       } catch (err) {
@@ -271,19 +278,6 @@ const AddProductComponent = () => {
     return true;
   };
 
-  /* ======================= Reset ======================= */
-  const resetForm = () => {
-    setName("");
-    setDescription("");
-    setSelectedCategory("");
-    setSelectedSubCategory("");
-    setVariants([]);
-    setBrands([]);
-    setSelectedBrand("");
-    setRows([EMPTY_ROW()]);
-    setError("");
-  };
-
   /* ======================= Submit ======================= */
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -407,13 +401,6 @@ const AddProductComponent = () => {
             className="px-6 py-2.5 bg-orange-600 text-white font-medium rounded-lg disabled:opacity-60"
           >
             {loading ? "Saving..." : "Add Product"}
-          </button>
-          <button
-            type="button"
-            onClick={resetForm}
-            className="px-6 py-2.5 bg-gray-200 text-gray-800 font-medium rounded-lg"
-          >
-            Reset
           </button>
         </div>
       </form>

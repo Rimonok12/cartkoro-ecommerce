@@ -47,14 +47,12 @@ api.interceptors.response.use(
 
     if (err.response?.status === 401 && !original._retry) {
       original._retry = true;
-      console.log("here from srr");
       try {
         const res = await axios.post(
           "/api/user/refresh",
           {},
           { withCredentials: true }
         );
-        console.log("refresh res.data.accessToken::", res.data.accessToken);
         setAccessToken(res.data.accessToken);
         original.headers.Authorization = `Bearer ${res.data.accessToken}`;
         return axios(original);

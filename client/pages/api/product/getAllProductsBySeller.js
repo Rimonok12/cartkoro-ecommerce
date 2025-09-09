@@ -2,15 +2,26 @@ import { forwardCookies } from "@/lib/forwardCookies";
 
 export default async function handler(req, res) {
   try {
-    const url = `${process.env.NODE_HOST}/api/product/createProduct`;
+    const { categoryId } = req.query;
+    let url;
+    if (categoryId) {
+      url = `${
+        process.env.NODE_HOST
+      }/api/product/getAllProductsBySeller?categoryId=${encodeURIComponent(
+        categoryId
+      )}`;
+    } else {
+      url = `${process.env.NODE_HOST}/api/product/getAllProductsBySeller`;
+    }
+    console.log("urlll habf.f::", url);
+
     const response = await fetch(url, {
-      method: "POST",
+      method: "GET",
       headers: {
         "Content-Type": "application/json",
         Authorization: req.headers.authorization || "",
       },
       credentials: "include",
-      body: JSON.stringify(req.body),
     });
 
     forwardCookies(response, res);

@@ -4,6 +4,7 @@ const {
   Product,
   Variant,
   ProductSku,
+  CategoryMargin,
 } = require("../models/productModels");
 const mongoose = require("mongoose");
 
@@ -175,23 +176,114 @@ const getVariants = async (req, res) => {
 };
 
 /* ======================= PRODUCT ======================= */
+// const createProduct = async (req, res) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+//     const { categoryId, brandId, name, description, variantRows } = req.body;
+//     console.log(
+//       "createProduct::::categoryId, brandId, name, description, variantRows::",
+//       categoryId,
+//       brandId,
+//       name,
+//       description,
+//       variantRows
+//     );
+
+//     if (!categoryId || !name || !variantRows || variantRows.length === 0) {
+//       return res.status(400).json({ message: "Missing required fields" });
+//     }
+
+//     const userId = req.user.userId;
+
+//     // Step 1: Create Product
+//     const product = new Product({
+//       category_id: categoryId,
+//       name,
+//       brandId,
+//       description,
+//       status: 1,
+//       userId,
+//     });
+
+//     await product.save({ session });
+
+//     // Step 2: Create SKUs
+//     const skuDocs = variantRows.map((v) => ({
+//       product_id: product._id,
+//       variant_values: v.values, // expects object like {color: 'red', size: 'L'}
+//       initial_stock: v.totalStock,
+//       MRP: v.MRP,
+//       SP: v.SP,
+//       thumbnail_img: v.thumbnail_img,
+//       side_imgs: v.side_imgs || [],
+//       status: 1,
+//     }));
+
+//     await ProductSku.insertMany(skuDocs, { session });
+
+//     // Commit transaction
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     return res.status(201).json({
+//       message: "Product Successfully Added",
+//     });
+//   } catch (error) {
+//     // Rollback transaction
+//     await session.abortTransaction();
+//     session.endSession();
+//     console.error("createProduct Error", error);
+//     return res.status(500).json({ error: error });
+//   }
+// };
 const createProduct = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { categoryId, name, description, variantRows } = req.body;
+    const { categoryId, brandId, name, description, variantRows } = req.body;
+    console.log(
+      "creteProd::",
+      categoryId,
+      brandId,
+      name,
+      description,
+      variantRows
+    );
 
-    if (!categoryId || !name || !variantRows || variantRows.length === 0) {
+    if (
+      !categoryId ||
+      !name ||
+      !Array.isArray(variantRows) ||
+      variantRows.length === 0
+    ) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const userId = req.user.userId;
+    const userId = req.user?.userId; // if you attach user earlier
+
+    // Fetch active margin for this category (if any)
+    const margin = await CategoryMargin.findOne({
+      category_id: categoryId,
+      is_active: true,
+    })
+      .lean()
+      .session(session);
+
+    const applyPct = (val, pct) => {
+      if (typeof val !== "number") return val; // leave undefined/null/other types alone
+      if (typeof pct !== "number") return val;
+      // round to nearest integer to keep consistency; tweak as needed
+      return Math.round(val * (1 + pct / 100));
+    };
 
     // Step 1: Create Product
     const product = new Product({
       category_id: categoryId,
       name,
+      brandId,
       description,
       status: 1,
       userId,
@@ -199,39 +291,61 @@ const createProduct = async (req, res) => {
 
     await product.save({ session });
 
-    // Step 2: Create SKUs
-    const skuDocs = variantRows.map((v) => ({
-      product_id: product._id,
-      variant_values: v.values, // expects object like {color: 'red', size: 'L'}
-      initial_stock: v.totalStock,
-      MRP: v.MRP,
-      SP: v.SP,
-      thumbnail_img: v.thumbnail_img,
-      side_imgs: v.side_imgs || [],
-      status: 1,
-    }));
+    // Step 2: Create SKUs (apply margins only to SP/MRP if margin present)
+    const skuDocs = variantRows.map((v) => {
+      // start with incoming values
+      let incomingMRP = v.MRP;
+      let incomingSP = v.SP;
+
+      // apply margins if available
+      let adjMRP =
+        margin && typeof margin.mrp_percent === "number"
+          ? applyPct(incomingMRP, margin.mrp_percent)
+          : incomingMRP;
+
+      let adjSP =
+        margin && typeof margin.sp_percent === "number"
+          ? applyPct(incomingSP, margin.sp_percent)
+          : incomingSP;
+
+      // keep business rule: SP <= MRP (only when both exist)
+      if (
+        typeof adjMRP === "number" &&
+        typeof adjSP === "number" &&
+        adjSP > adjMRP
+      ) {
+        adjSP = adjMRP;
+      }
+
+      return {
+        product_id: product._id,
+        variant_values: v.values, // e.g. {color:'red', size:'L'}
+        initial_stock: v.totalStock,
+        MRP: adjMRP,
+        SP: adjSP,
+        thumbnail_img: v.thumbnail_img,
+        side_imgs: Array.isArray(v.side_imgs) ? v.side_imgs : [],
+        status: 1,
+      };
+    });
 
     await ProductSku.insertMany(skuDocs, { session });
 
-    // Commit transaction
     await session.commitTransaction();
     session.endSession();
 
-    return res.status(201).json({
-      message: "Product Successfully Added",
-    });
+    return res.status(201).json({ message: "Product Successfully Added" });
   } catch (error) {
-    // Rollback transaction
     await session.abortTransaction();
     session.endSession();
     console.error("createProduct Error", error);
-    return res.status(500).json({ error: error });
+    return res.status(500).json({ error: error.message || error });
   }
 };
 
 const getAllProducts = async (req, res) => {
   try {
-    const { categoryId } = req.query;
+    const { categoryId, sellerId } = req.query;
 
     let categoryIds = [];
     if (categoryId) {
@@ -250,7 +364,7 @@ const getAllProducts = async (req, res) => {
       }
     }
 
-    // ✅ fetch only active products
+    // fetch only active products
     const query = { status: 1 };
     if (categoryIds.length) query.category_id = { $in: categoryIds };
 
@@ -377,6 +491,80 @@ const getProductBySkuId = async (req, res) => {
   }
 };
 
+const getAllProductsBySeller = async (req, res) => {
+  try {
+    const { categoryId } = req.query;
+    const sellerId = req.user.userId;
+    console.log("sellerId::", sellerId);
+
+    let categoryIds = [];
+    if (categoryId) {
+      // find the target category
+      const cat = await Category.findById(categoryId).lean();
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+
+      // if root category (level == self) → include children too
+      categoryIds = [cat._id];
+      if (String(cat.level) === String(cat._id)) {
+        const children = await Category.find(
+          { level: cat._id, _id: { $ne: cat._id } },
+          { _id: 1 }
+        ).lean();
+        categoryIds.push(...children.map((c) => c._id));
+      }
+    }
+
+    // fetch only active products
+    const query = { status: 1, userId: sellerId };
+    if (categoryIds.length) query.category_id = { $in: categoryIds };
+
+    const products = await Product.find(query)
+      .populate("category_id", "name")
+      .lean();
+
+    const productIds = products.map((p) => p._id);
+
+    // fetch SKUs
+    const skus = await ProductSku.find({
+      product_id: { $in: productIds },
+    })
+      .select("_id product_id MRP SP thumbnail_img status createdAt")
+      .sort({ createdAt: 1 }) // oldest first
+      .lean();
+
+    // pick first ACTIVE sku per product
+    const firstActiveSkuMap = {};
+    skus.forEach((sku) => {
+      const pid = sku.product_id.toString();
+      if (!firstActiveSkuMap[pid] && sku.status === 1) {
+        firstActiveSkuMap[pid] = sku;
+      }
+    });
+
+    // build final result (removed product_id & category_id)
+    const result = products
+      .map((p) => {
+        const sku = firstActiveSkuMap[p._id.toString()];
+        if (!sku) return null; // exclude products without active sku
+        return {
+          name: p.name,
+          category_name: p.category_id?.name || null,
+          sku_id: sku._id,
+          thumbnail_img: sku.thumbnail_img,
+          mrp: sku.MRP,
+          selling_price: sku.SP,
+          visitUrl: `/product/${sku._id}`,
+        };
+      })
+      .filter(Boolean);
+
+    return res.json(result);
+  } catch (err) {
+    console.error("getAllProducts error", err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   createCategory,
   getCategories,
@@ -387,4 +575,5 @@ module.exports = {
   createProduct,
   getAllProducts,
   getProductBySkuId,
+  getAllProductsBySeller,
 };

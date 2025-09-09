@@ -27,51 +27,41 @@ exports.auth = (req, res, next) => {
   }
 };
 
-// cascade: super ⇒ admin ⇒ seller
-function normalizeRoles(user = {}) {
-  const isSuper = !!user.is_super_admin;
-  const isAdmin = !!user.is_admin || isSuper;
-  const isSeller = !!user.is_seller || isAdmin; // admins/supers count as seller too
-  return { isSuper, isAdmin, isSeller };
-}
-
-function requireRole(required) {
+exports.allowRoles = (...allowedRoles) => {
   return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+    const user = req.user;
+    console.log("req.user::", req.user);
 
-    const { isSuper, isAdmin, isSeller } = normalizeRoles(req.user);
-
-    let allowed = false;
-    switch (required) {
-      case "super_admin":
-        allowed = isSuper;
-        break;
-      case "admin":
-        allowed = isAdmin; // includes super
-        break;
-      case "seller":
-        allowed = isSeller; // includes admin/super
-        break;
-      default:
-        allowed = false;
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (!allowed) {
-      const msg =
-        required === "super_admin"
-          ? "Super Admin access required"
-          : required === "admin"
-          ? "Admin access required"
-          : "Seller access required";
-      return res.status(403).json({ message: msg });
+    // Map roles to a hierarchy level
+    const roleHierarchy = {
+      seller: 1,
+      admin: 2,
+      superadmin: 3,
+    };
+    // Detect user’s role
+    let userRole;
+    if (user.is_super_admin) userRole = "superadmin";
+    else if (user.is_admin) userRole = "admin";
+    else if (user.is_seller) userRole = "seller";
+
+    if (!userRole) {
+      return res.status(403).json({ message: "No valid role assigned" });
     }
 
-    // expose normalized flags if downstream wants them
-    req.userRoles = { isSuper, isAdmin, isSeller };
-    next();
+    // Check if user role is in allowed roles
+    const userLevel = roleHierarchy[userRole];
+    const minRequiredLevel = Math.min(
+      ...allowedRoles.map((r) => roleHierarchy[r])
+    );
+
+    if (userLevel >= minRequiredLevel) {
+      return next();
+    }
+
+    return res.status(403).json({ message: "Access denied" });
   };
-}
-
-exports.superAdminOnly = requireRole("super_admin");
-exports.adminOnly = requireRole("admin");
-exports.sellerOnly = requireRole("seller");
+};

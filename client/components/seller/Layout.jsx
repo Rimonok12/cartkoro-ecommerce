@@ -12,7 +12,7 @@ export async function getServerSideProps(context) {
   // }
 
   // return { props: { ...essentials.props } };
-  return requireB2B(context); // defaults to anyOf: ["is_seller","is_admin","is_super_admin"]
+  return requireB2B(context);
 }
 
 export default function SellerDashboard(props) {

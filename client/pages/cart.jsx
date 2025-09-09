@@ -1,22 +1,22 @@
 // client/pages/cart.jsx
-'use client';
+"use client";
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import Navbar from '@/components/Navbar';
-import OrderSummary from '@/components/OrderSummary';
-import { assets } from '@/assets/assets';
-import { useAppContext } from '@/context/AppContext';
-import api from '@/lib/axios';
-import { essentialsOnLoad } from '@/lib/ssrHelper';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import Navbar from "@/components/Navbar";
+import OrderSummary from "@/components/OrderSummary";
+import { assets } from "@/assets/assets";
+import { useAppContext } from "@/context/AppContext";
+import api from "@/lib/axios";
+import { essentialsOnLoad } from "@/lib/ssrHelper";
 
 // ✅ SSR guard (pages router)
 export async function getServerSideProps(context) {
   const { req } = context;
   const cookies = req.cookies || {};
-  if (!cookies['CK-REF-T']) {
-    return { redirect: { destination: '/login', permanent: false } };
+  if (!cookies["CK-REF-T"]) {
+    return { redirect: { destination: "/login", permanent: false } };
   }
   const essentials = await essentialsOnLoad(context);
   return { props: { ...essentials.props } };
@@ -31,7 +31,7 @@ function normFromHandler(payload) {
     root.product_name ||
     root.product?.name ||
     root.productData?.name ||
-    'Product';
+    "Product";
 
   const sp = Number(
     sku?.SP ?? sku?.sp ?? sku?.price ?? sku?.selling_price ?? 0
@@ -43,8 +43,8 @@ function normFromHandler(payload) {
     sku?.thumbnail_img ||
     (Array.isArray(sku?.side_imgs) && sku.side_imgs.length
       ? sku.side_imgs[0]
-      : '') ||
-    '';
+      : "") ||
+    "";
 
   return {
     sku_id: sku?._id || sku?.sku_id || root?.sku_id || root?.id || null,
@@ -89,7 +89,7 @@ export default function Cart() {
   const syncNow = async (nextItems) => {
     try {
       await api.post(
-        '/user/updateCart',
+        "/user/updateCart",
         {
           items: nextItems.map(({ sku_id, quantity }) => ({
             sku_id,
@@ -100,7 +100,7 @@ export default function Cart() {
         { withCredentials: true }
       );
     } catch (e) {
-      console.error('Cart sync failed:', e?.message || e);
+      console.error("Cart sync failed:", e?.message || e);
     }
   };
 
@@ -131,7 +131,7 @@ export default function Cart() {
                   it.sp ??
                   0
               ) || 0,
-            thumbnailImg: it.thumbnailImg || '',
+            thumbnailImg: it.thumbnailImg || "",
           };
         } else if (it?.sku_id) {
           needIds.push(it.sku_id);
@@ -159,10 +159,10 @@ export default function Cart() {
     return {
       sku_id: it.sku_id,
       quantity: Number(it.quantity) || 1,
-      name: it.name ?? e.name ?? 'Product',
+      name: it.name ?? e.name ?? "Product",
       sp,
       mrp,
-      thumbnailImg: it.thumbnail_img ?? it.thumbnailImg ?? e.thumbnailImg ?? '',
+      thumbnailImg: it.thumbnail_img ?? it.thumbnailImg ?? e.thumbnailImg ?? "",
       url: `/product/${it.sku_id}`, // 👈 product detail link
     };
   });
@@ -210,7 +210,7 @@ export default function Cart() {
               Your <span className="font-semibold text-orange-600">Cart</span>
             </p>
             <p className="text-sm md:text-lg text-gray-500/90">
-              {getCartCount()} Item{getCartCount() === 1 ? '' : 's'}
+              {getCartCount()} Item{getCartCount() === 1 ? "" : "s"}
             </p>
           </div>
 
@@ -254,13 +254,13 @@ export default function Cart() {
                           className="block font-medium text-slate-900 md:text-base hover:underline break-words"
                           title={item.name}
                           style={{
-                            display: '-webkit-box',
-                            WebkitBoxOrient: 'vertical',
+                            display: "-webkit-box",
+                            WebkitBoxOrient: "vertical",
                             WebkitLineClamp: 2, // clamp to 2 lines
-                            overflow: 'hidden', // hide the rest
-                            wordBreak: 'break-word', // break long words
-                            hyphens: 'auto',
-                            lineHeight: '1.25',
+                            overflow: "hidden", // hide the rest
+                            wordBreak: "break-word", // break long words
+                            hyphens: "auto",
+                            lineHeight: "1.25",
                           }}
                         >
                           {item.name}
@@ -284,7 +284,7 @@ export default function Cart() {
                             )}
                           </div>
                           <div className="mt-1 text-sm md:text-base text-slate-900 font-medium">
-                            Subtotal: {currency}{' '}
+                            Subtotal: {currency}{" "}
                             {(item.sp * item.quantity).toFixed(2)}
                           </div>
                         </div>
@@ -344,7 +344,7 @@ export default function Cart() {
           )}
 
           <button
-            onClick={() => (window.location.href = '/')}
+            onClick={() => (window.location.href = "/")}
             className="group mt-6 inline-flex items-center gap-2 text-orange-600"
           >
             <Image

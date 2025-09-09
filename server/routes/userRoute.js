@@ -8,7 +8,7 @@ const {
   register,
   getUserRedisData,
   getProfileData,
-  updateProfileData
+  updateProfileData,
 } = require("../controllers/userController");
 const { updateCart } = require("../controllers/cartController");
 const {
@@ -16,7 +16,7 @@ const {
   getAddresses,
   editAddress,
   deleteAddress,
-  redisSetRecentAddress
+  redisSetRecentAddress,
 } = require("../controllers/addressController");
 const { auth } = require("../middleware/auth");
 
@@ -39,6 +39,5 @@ router.post("/getProfileData", auth, getProfileData);
 router.put("/updateProfileData", auth, updateProfileData);
 
 router.post("/redisSetRecentAddress", redisSetRecentAddress);
-
 
 module.exports = router;
