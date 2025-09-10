@@ -237,7 +237,7 @@ export default function ItemsSold() {
                           initial="hidden"
                           animate="show"
                           exit={{ opacity: 0, y: -10 }}
-                          className="rounded-2xl p-[1.25px] bg-gradient-to-br shadow-xl ring-1 ring-black/10"
+                          className="rounded-2xl p-[1.25px] bg-gradient-to-br ring-1 ring-black/10"
                         >
                           <div className="rounded-2xl bg-white/92 backdrop-blur">
                             {/* shimmer line */}

@@ -128,9 +128,8 @@ export default function ProductList() {
             _id: data.main_sku._id,
             thumb: data.main_sku.thumbnail_img || data.main_sku.image || "",
             variants: data.main_sku.variant_values || {},
-            left_stock: data.main_sku.left_stock,
-            initial_stock:
-              data.main_sku.initial_stock ?? data.main_sku.total_stock,
+            initial_stock: data.main_sku.initial_stock,
+            sold_stock: data.main_sku.sold_stock,
             ...pickPrice(data.main_sku),
           });
         }
@@ -140,8 +139,8 @@ export default function ProductList() {
               _id: s._id,
               thumb: s.thumbnail_img || s.image || "",
               variants: s.variant_values || {},
-              left_stock: s.left_stock,
-              initial_stock: s.initial_stock ?? s.total_stock,
+              initial_stock: s.initial_stock,
+              sold_stock: s.sold_stock,
               ...pickPrice(s),
             });
           }
@@ -297,10 +296,14 @@ export default function ProductList() {
                                     </div>
                                     <div className="grid gap-3 sm:grid-cols-2">
                                       {rowDetails.data.items.map((sku) => {
-                                        console.log("sku::", sku);
-                                        const initial = sku.sku_initial_stock;
-                                        const sold = sku.sku_sold_stock;
-
+                                        const initial =
+                                          typeof sku.initial_stock === "number"
+                                            ? sku.initial_stock
+                                            : undefined;
+                                        const sold =
+                                          typeof sku.sold_stock === "number"
+                                            ? sku.sold_stock
+                                            : undefined;
                                         return (
                                           <div
                                             key={sku._id}
@@ -359,7 +362,14 @@ export default function ProductList() {
                                               }
                                               className="ml-auto inline-flex items-center gap-2 rounded-xl bg-orange-600 px-3.5 py-2 text-white shadow-sm hover:bg-orange-700 active:scale-[.98]"
                                             >
-                                              View
+                                              <span className="hidden md:block">
+                                                Visit
+                                              </span>
+                                              <Image
+                                                className="h-3.5 w-3.5"
+                                                src={assets.redirect_icon}
+                                                alt="redirect_icon"
+                                              />
                                             </button>
                                           </div>
                                         );

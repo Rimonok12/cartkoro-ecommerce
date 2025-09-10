@@ -568,6 +568,8 @@ const getProductBySkuId = async (req, res) => {
       return {
         _id: s._id,
         variant_values: vv,
+        initial_stock: s.initial_stock,
+        sold_stock: s.sold_stock,
         left_stock,
         thumbnail_img: s.thumbnail_img,
         side_imgs: s.side_imgs,
@@ -601,101 +603,6 @@ const getProductBySkuId = async (req, res) => {
     return res.status(500).json({ message: err.message });
   }
 };
-
-// const getAllProductsBySeller = async (req, res) => {
-//   try {
-//     const { categoryId } = req.query;
-//     const sellerId = req.user.userId;
-
-//     // --- category filter (root includes children)
-//     let categoryIds = [];
-//     if (categoryId) {
-//       const cat = await Category.findById(categoryId).lean();
-//       if (!cat) return res.status(404).json({ message: "Category not found" });
-
-//       categoryIds = [cat._id];
-//       if (String(cat.level) === String(cat._id)) {
-//         const children = await Category.find(
-//           { level: cat._id, _id: { $ne: cat._id } },
-//           { _id: 1 }
-//         ).lean();
-//         categoryIds.push(...children.map((c) => c._id));
-//       }
-//     }
-
-//     // --- products owned by seller
-//     const query = { status: 1, userId: sellerId };
-//     if (categoryIds.length) query.category_id = { $in: categoryIds };
-
-//     const products = await Product.find(query)
-//       .populate("category_id", "name")
-//       .select("_id name category_id createdAt")
-//       .lean();
-
-//     if (!products.length) return res.json([]);
-
-//     const productIds = products.map((p) => p._id);
-
-//     // --- all SKUs for these products (we'll pick the latest ACTIVE per product)
-//     const skus = await ProductSku.find({ product_id: { $in: productIds } })
-//       .select(
-//         "_id product_id seller_mrp seller_sp thumbnail_img status createdAt"
-//       )
-//       .lean();
-
-//     // pick the LATEST active sku per product (by createdAt desc)
-//     const latestActiveSkuMap = new Map(); // pid -> sku
-//     for (const sku of skus) {
-//       if (sku.status !== 1) continue;
-//       const pid = String(sku.product_id);
-//       const current = latestActiveSkuMap.get(pid);
-//       if (!current || new Date(sku.createdAt) > new Date(current.createdAt)) {
-//         latestActiveSkuMap.set(pid, sku);
-//       }
-//     }
-
-//     // build response rows (only those with an active sku)
-//     const rows = [];
-//     for (const p of products) {
-//       const sku = latestActiveSkuMap.get(String(p._id));
-//       if (!sku) continue;
-
-//       rows.push({
-//         name: p.name,
-//         category_name: p.category_id?.name || null,
-//         sku_id: sku._id,
-//         thumbnail_img: sku.thumbnail_img || null,
-
-//         // ✅ only seller prices
-//         seller_mrp: typeof sku.seller_mrp === "number" ? sku.seller_mrp : null,
-//         seller_sp: typeof sku.seller_sp === "number" ? sku.seller_sp : null,
-
-//         visitUrl: `/product/${sku._id}`,
-
-//         // timestamps so FE can sort newest on top
-//         product_created_at: p.createdAt,
-//         sku_created_at: sku.createdAt,
-//       });
-//     }
-
-//     // sort newest on top — prefer product creation, then sku creation
-//     rows.sort((a, b) => {
-//       const ta = new Date(
-//         a.product_created_at ?? a.sku_created_at ?? 0
-//       ).getTime();
-//       const tb = new Date(
-//         b.product_created_at ?? b.sku_created_at ?? 0
-//       ).getTime();
-//       return tb - ta; // newest first
-//     });
-
-//     return res.json(rows);
-//   } catch (err) {
-//     console.error("getAllProductsBySeller error", err);
-//     return res.status(500).json({ message: err.message });
-//   }
-// };
-// controllers/productController.js  (or wherever your function lives)
 
 async function resolveVariantNames(categoryId, variantValues) {
   const variants = await Variant.find({ category_id: categoryId })
@@ -791,29 +698,15 @@ const getAllProductsBySeller = async (req, res) => {
         sku.variant_values || {}
       );
 
-      // per-latest-SKU stocks from total_* fields
-      const skuSold =
-        typeof sku.sold_stock === "number" ? sku.sold_stock : null;
-      const skuInitial =
-        typeof sku.initial_stock === "number" ? sku.initial_stock : null;
-
       rows.push({
         name: p.name,
         category_name: p.category_id?.name || null,
         sku_id: sku._id,
         thumbnail_img: sku.thumbnail_img || null,
 
-        seller_mrp: typeof sku.seller_mrp === "number" ? sku.seller_mrp : null,
-        seller_sp: typeof sku.seller_sp === "number" ? sku.seller_sp : null,
-
         preview_variants,
-        visitUrl: `/product/${sku._id}`,
         product_created_at: p.createdAt,
         sku_created_at: sku.createdAt,
-
-        // Per latest-active SKU (derived from total_* fields)
-        sku_initial_stock: skuInitial,
-        sku_sold_stock: skuSold,
       });
     }
 
