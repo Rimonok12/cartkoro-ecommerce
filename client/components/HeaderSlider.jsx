@@ -1,17 +1,29 @@
 import React, { useState, useEffect } from "react";
 import { assets } from "@/assets/assets";
+
 import Image from "next/image";
 
 const HeaderSlider = () => {
   const sliderData = [
-    {
-      id: 1,
-      title: "Experience Pure Sound - Your Perfect Headphones Awaits!",
-      offer: "Limited Time Offer 30% Off",
-      buttonText1: "Buy now",
-      buttonText2: "Find more",
-      imgSrc: assets.header_headphone_image,
-    },
+    // {
+    //   id: 1,
+    //    title: "Special Puja Offers!",
+    //    offer: "Limited Time Offer 34% Off",
+    //    buttonText1: "Buy now",
+    //    buttonText2: "Grab More Deal",
+    //   Image: f1.svg,
+    // },const sliderData = [
+      {
+        id: 1,
+        title: "Special Puja Offers!",
+        offer: "Limited Time Offer 34% Off",
+        buttonText1: "Buy now",
+        buttonText2: "Grab More Deal",
+        imgSrc: "/f2.png",   // file in /public/f2.png
+        width: 800,
+        height: 800,
+        alt: "Durga Puja festive banner",
+      },
     {
       id: 2,
       title: "Next-Level Gaming Starts Here - Discover PlayStation 5 Today!",
@@ -78,11 +90,20 @@ const HeaderSlider = () => {
               </div>
             </div>
             <div className="flex items-center flex-1 justify-center">
-              <Image
+              {/* <Image
                 className="md:w-72 w-48"
                 src={slide.imgSrc}
                 alt={`Slide ${index + 1}`}
-              />
+              /> */}
+              <Image
+  className="md:w-72 w-48 h-auto"
+  src={slide.imgSrc}                 // "/f2.png"
+  alt={slide.alt ?? `Slide ${index + 1}`}
+  width={slide.width ?? 800}         // ✅ required for string paths
+  height={slide.height ?? 600}       // ✅ required for string paths
+  priority={index === 0}
+/>
+
             </div>
           </div>
         ))}

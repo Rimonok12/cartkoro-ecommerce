@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router"; // pages router
@@ -21,11 +21,20 @@ const SuccessModal = ({ open, message, onOK }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30" />
-      <div role="dialog" aria-modal="true" className="relative z-10 w-[90%] max-w-md rounded-2xl bg-white p-6 shadow-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative z-10 w-[90%] max-w-md rounded-2xl bg-white p-6 shadow-xl"
+      >
         <h2 className="text-lg font-semibold">Success</h2>
         <p className="text-sm text-gray-600 mt-1">{message}</p>
         <div className="mt-6 flex justify-end">
-          <button className="px-5 py-2 bg-orange-600 text-white rounded-lg" onClick={onOK}>OK</button>
+          <button
+            className="px-5 py-2 bg-orange-600 text-white rounded-lg"
+            onClick={onOK}
+          >
+            OK
+          </button>
         </div>
       </div>
     </div>
@@ -51,16 +60,22 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
   const [userAddresses, setUserAddresses] = useState([]);
 
   const [successOpen, setSuccessOpen] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("Your order has been placed successfully.");
+  const [successMsg, setSuccessMsg] = useState(
+    "Your order has been placed successfully."
+  );
 
   const pickById = (list, id) =>
-    list.find(a => String(a?._id) === String(id)) || null;
+    list.find((a) => String(a?._id) === String(id)) || null;
 
   // load addresses then preselect from context.recentAddress
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.post("/user/getAddresses", {}, { withCredentials: true });
+        const res = await api.post(
+          "/user/getAddresses",
+          {},
+          { withCredentials: true }
+        );
         const addrs = res?.data?.addresses || [];
         setUserAddresses(addrs);
         if (recentAddress?.id) {
@@ -94,7 +109,10 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
   // -------- Money calculations --------
   const totalMrp = useMemo(() => {
     return rows.reduce((sum, r) => {
-      const mrp = toNumber(r?.mrp ?? r?.MRP ?? r?.listPrice ?? r?.priceBeforeDiscount ?? r?.sp, 0);
+      const mrp = toNumber(
+        r?.mrp ?? r?.MRP ?? r?.listPrice ?? r?.priceBeforeDiscount ?? r?.sp,
+        0
+      );
       const qty = toNumber(r?.quantity, 0);
       return sum + mrp * qty;
     }, 0);
@@ -103,7 +121,9 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
   const mrpDiscount = Math.max(0, totalMrp - subtotal);
 
   const rawCashback = toNumber(cashbackData, 0);
-  let maxIdx = -1, maxVal = -1, hasEligibleLine = false;
+  let maxIdx = -1,
+    maxVal = -1,
+    hasEligibleLine = false;
 
   rows.forEach((r, idx) => {
     const sp = Number(r.sp ?? 0) || 0;
@@ -119,12 +139,16 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
   const willApplyCashback = hasEligibleLine && rawCashback > 0;
   const eligibleLineSubtotal =
     maxIdx >= 0
-      ? (Number(rows[maxIdx]?.sp ?? 0) || 0) * (Number(rows[maxIdx]?.quantity ?? 0) || 0)
+      ? (Number(rows[maxIdx]?.sp ?? 0) || 0) *
+        (Number(rows[maxIdx]?.quantity ?? 0) || 0)
       : 0;
-  const appliedCashback = willApplyCashback ? Math.min(rawCashback, eligibleLineSubtotal) : 0;
+  const appliedCashback = willApplyCashback
+    ? Math.min(rawCashback, eligibleLineSubtotal)
+    : 0;
 
   const total = Math.max(0, subtotal - appliedCashback);
-  const totalDiscountPercent = totalMrp > 0 ? Math.round((mrpDiscount / totalMrp) * 100) : 0;
+  const totalDiscountPercent =
+    totalMrp > 0 ? Math.round((mrpDiscount / totalMrp) * 100) : 0;
 
   // -------- Place Order --------
   const createOrder = async () => {
@@ -164,16 +188,28 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
         items,
       };
 
-      const res = await api.post("/order/createOrder", payload, { withCredentials: true });
+      const res = await api.post("/order/createOrder", payload, {
+        withCredentials: true,
+      });
 
       if (res?.data?.ok) {
         setCartData({ items: [] });
         if (appliedCashback > 0) setCashbackData(0);
 
-        api.post("/user/updateCart", { items: [], merge: false }, { withCredentials: true }).catch(() => {});
+        api
+          .post(
+            "/user/updateCart",
+            { items: [], merge: false },
+            { withCredentials: true }
+          )
+          .catch(() => {});
 
         const orderId = res?.data?.order?._id;
-        setSuccessMsg(orderId ? `Order #${orderId} has been placed successfully.` : "Your order has been placed successfully.");
+        setSuccessMsg(
+          orderId
+            ? `Order #${orderId} has been placed successfully.`
+            : "Your order has been placed successfully."
+        );
         setSuccessOpen(true);
         return;
       }
@@ -192,7 +228,9 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
   return (
     <>
       <div className="w-full md:w-96 bg-gray-500/5 p-5">
-        <h2 className="text-xl md:text-2xl font-medium text-gray-700">Order Summary</h2>
+        <h2 className="text-xl md:text-2xl font-medium text-gray-700">
+          Order Summary
+        </h2>
         <hr className="border-gray-500/30 my-5" />
 
         <div className="space-y-6">
@@ -208,13 +246,28 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
               >
                 <span>
                   {selectedAddress
-                    ? `${selectedAddress.full_name}, ${selectedAddress.address}, ${selectedAddress?.upazila_id?.name ?? ""}, ${selectedAddress?.district_id?.name ?? ""}`
+                    ? `${selectedAddress.full_name}, ${
+                        selectedAddress.address
+                      }, ${selectedAddress?.upazila_id?.name ?? ""}, ${
+                        selectedAddress?.district_id?.name ?? ""
+                      }`
                     : "Select Address"}
                 </span>
                 <svg
-                  className={`w-5 h-5 inline float-right transition-transform duration-200 ${isDropdownOpen ? "rotate-0" : "-rotate-90"}`}
-                  xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#6B7280">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  className={`w-5 h-5 inline float-right transition-transform duration-200 ${
+                    isDropdownOpen ? "rotate-0" : "-rotate-90"
+                  }`}
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="#6B7280"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </button>
 
@@ -226,11 +279,16 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
                       className="px-4 py-2 hover:bg-gray-500/10 cursor-pointer"
                       onClick={() => handleAddressSelect(address)}
                     >
-                      {address.full_name}, {address.address}, {address?.upazila_id?.name ?? ""}, {address?.district_id?.name ?? ""}
+                      {address.full_name}, {address.address},{" "}
+                      {address?.upazila_id?.name ?? ""},{" "}
+                      {address?.district_id?.name ?? ""}
                     </li>
                   ))}
                   <li
-                    onClick={() => (window.location.href = "/account/address?add-address=true")}
+                    onClick={() =>
+                      (window.location.href =
+                        "/account/address?add-address=true")
+                    }
                     className="px-4 py-2 hover:bg-gray-500/10 cursor-pointer text-center"
                   >
                     + Add New Address
@@ -245,7 +303,8 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
           {/* Payment Type */}
           <div>
             <label className="text-base font-medium uppercase text-gray-600 block mb-2">
-              Payment Type :<span className="text-orange-600"> Cash On Delivery</span>
+              Payment Type :
+              <span className="text-orange-600"> Cash On Delivery</span>
             </label>
           </div>
 
@@ -255,18 +314,23 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
           <div className="space-y-4">
             <div className="flex justify-between text-base font-medium">
               <p className="uppercase font-medium text-gray-600">
-                Price Details ({getCartCount()} item{getCartCount() === 1 ? "" : "s"})
+                Price Details ({getCartCount()} item
+                {getCartCount() === 1 ? "" : "s"})
               </p>
             </div>
 
             <div className="flex justify-between text-base font-medium">
               <p className="text-gray-600">Total MRP</p>
-              <p className="text-gray-800">{currency} {totalMrp.toFixed(2)}</p>
+              <p className="text-gray-800">
+                {currency} {totalMrp.toFixed(2)}
+              </p>
             </div>
 
             <div className="flex justify-between text-base font-medium">
               <p className="text-gray-600">MRP Discount</p>
-              <p className="text-gray-800">- {currency} {mrpDiscount.toFixed(2)}</p>
+              <p className="text-gray-800">
+                - {currency} {mrpDiscount.toFixed(2)}
+              </p>
             </div>
 
             <div className="flex justify-between">
@@ -278,7 +342,9 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
                   </span>
                 ) : null}
               </p>
-              <p className="font-medium text-gray-800">- {currency} {appliedCashback.toFixed(2)}</p>
+              <p className="font-medium text-gray-800">
+                - {currency} {appliedCashback.toFixed(2)}
+              </p>
             </div>
 
             <div className="flex justify-between">
@@ -289,25 +355,38 @@ const OrderSummary = ({ rows = [], subtotal = 0 }) => {
             <div className="border-t pt-3">
               <div className="flex justify-between text-lg md:text-xl font-medium">
                 <p>Total</p>
-                <p>{currency} {total.toFixed(2)}</p>
+                <p>
+                  {currency} {total.toFixed(2)}
+                </p>
               </div>
 
               {mrpDiscount > 0 && (
                 <p className="mt-2 text-sm text-green-700">
-                  You will save {currency} {mrpDiscount.toFixed(2)} on this order
-                  {totalDiscountPercent > 0 ? ` (${totalDiscountPercent}% off)` : ''}.
+                  You will save {currency} {mrpDiscount.toFixed(2)} on this
+                  order
+                  {totalDiscountPercent > 0
+                    ? ` (${totalDiscountPercent}% off)`
+                    : ""}
+                  .
                 </p>
               )}
             </div>
           </div>
         </div>
 
-        <button onClick={createOrder} className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700">
+        <button
+          onClick={createOrder}
+          className="w-full bg-orange-600 text-white py-3 mt-5 hover:bg-orange-700"
+        >
           Place Order
         </button>
       </div>
 
-      <SuccessModal open={successOpen} message={successMsg} onOK={handleSuccessOK} />
+      <SuccessModal
+        open={successOpen}
+        message={successMsg}
+        onOK={handleSuccessOK}
+      />
     </>
   );
 };

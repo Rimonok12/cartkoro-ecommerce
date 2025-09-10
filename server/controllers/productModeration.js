@@ -121,9 +121,40 @@ const approvedProducts = async (req, res) => {
   }
 };
 
+// const upsertCategoryMargin = async (req, res) => {
+//   try {
+//     const { categoryId, spPercent, mrpPercent } = req.body;
+
+//     if (!categoryId) {
+//       return res.status(400).json({ message: "categoryId is required" });
+//     }
+
+//     const cat = await Category.findById(categoryId).lean();
+//     if (!cat) return res.status(404).json({ message: "Category not found" });
+
+//     const update = {
+//       ...(typeof spPercent === "number" ? { sp_percent: spPercent } : {}),
+//       ...(typeof mrpPercent === "number" ? { mrp_percent: mrpPercent } : {}),
+//     };
+
+//     const margin = await CategoryMargin.findOneAndUpdate(
+//       { category_id: categoryId },
+//       { $set: update },
+//       { new: true, upsert: true, runValidators: true }
+//     ).lean();
+
+//     return res.status(200).json({ message: "Margin upserted", data: margin });
+//   } catch (err) {
+//     console.error("upsertCategoryMargin error:", err);
+//     return res
+//       .status(500)
+//       .json({ message: "Internal error", error: err.message });
+//   }
+// };
 const upsertCategoryMargin = async (req, res) => {
   try {
-    const { categoryId, spPercent, mrpPercent } = req.body;
+    const { categoryId, spPercent, mrpPercent, priceMin, priceMax, isActive } =
+      req.body;
 
     if (!categoryId) {
       return res.status(400).json({ message: "categoryId is required" });
@@ -132,14 +163,49 @@ const upsertCategoryMargin = async (req, res) => {
     const cat = await Category.findById(categoryId).lean();
     if (!cat) return res.status(404).json({ message: "Category not found" });
 
+    // Build $set only with provided fields
+    const set = {};
+    if (typeof spPercent === "number") set.sp_percent = spPercent;
+    if (typeof mrpPercent === "number") set.mrp_percent = mrpPercent;
+    if (typeof isActive === "boolean") set.is_active = isActive;
+
+    // Handle optional price band
+    const hasMin = typeof priceMin !== "undefined";
+    const hasMax = typeof priceMax !== "undefined";
+
+    if (hasMin || hasMax) {
+      const min = hasMin ? Math.max(0, Number(priceMin)) : undefined;
+      const max = hasMax ? Math.max(0, Number(priceMax)) : undefined;
+
+      if (hasMin && Number.isNaN(min)) {
+        return res.status(400).json({ message: "priceMin must be a number" });
+      }
+      if (hasMax && Number.isNaN(max)) {
+        return res.status(400).json({ message: "priceMax must be a number" });
+      }
+      if (hasMin && hasMax && max < min) {
+        return res
+          .status(400)
+          .json({ message: "priceMax cannot be less than priceMin" });
+      }
+
+      if (hasMin) set.price_min = min;
+      if (hasMax) set.price_max = max;
+    }
+
     const update = {
-      ...(typeof spPercent === "number" ? { sp_percent: spPercent } : {}),
-      ...(typeof mrpPercent === "number" ? { mrp_percent: mrpPercent } : {}),
+      $set: set,
+      // Defaults only when inserting a new doc
+      $setOnInsert: {
+        price_min: 0,
+        price_max: 500000,
+        is_active: true,
+      },
     };
 
     const margin = await CategoryMargin.findOneAndUpdate(
       { category_id: categoryId },
-      { $set: update },
+      update,
       { new: true, upsert: true, runValidators: true }
     ).lean();
 

@@ -19,11 +19,9 @@ const EMPTY_ROW = () => ({
 });
 
 const AddProductComponent = () => {
-  // form fields (global)
+  // ----- state (unchanged) -----
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-
-  // category / variants / brands
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [subCategories, setSubCategories] = useState([]);
@@ -31,17 +29,13 @@ const AddProductComponent = () => {
   const [variants, setVariants] = useState([]);
   const [brands, setBrands] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState("");
-
-  // variant rows
   const [rows, setRows] = useState([EMPTY_ROW()]);
-
-  // ui
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
-  /* ======================= Fetch categories ======================= */
+  // ----- effects (unchanged) -----
   useEffect(() => {
     let ignore = false;
     const abort = new AbortController();
@@ -51,9 +45,8 @@ const AddProductComponent = () => {
           signal: abort.signal,
         });
         const data = await res.json();
-        if (!ignore && !data.error) {
+        if (!ignore && !data.error)
           setCategories(Array.isArray(data) ? data : []);
-        }
       } catch (err) {
         if (!ignore) console.error("Error fetching categories:", err);
       }
@@ -64,14 +57,12 @@ const AddProductComponent = () => {
     };
   }, []);
 
-  /* ======================= Category change -> subcategories reset ======================= */
   useEffect(() => {
     const selected = categories.find((c) => c._id === selectedCategory);
     setSubCategories(selected?.children?.length ? selected.children : []);
     setSelectedSubCategory("");
   }, [selectedCategory, categories]);
 
-  /* ======================= Fetch variants when (sub)category changes ======================= */
   useEffect(() => {
     const categoryId = selectedSubCategory || selectedCategory;
     if (!categoryId) {
@@ -102,7 +93,6 @@ const AddProductComponent = () => {
     };
   }, [selectedSubCategory, selectedCategory]);
 
-  /* ======================= Fetch brands when (sub)category changes ======================= */
   useEffect(() => {
     const categoryId = selectedSubCategory || selectedCategory;
     if (!categoryId) {
@@ -114,26 +104,23 @@ const AddProductComponent = () => {
     const abort = new AbortController();
     (async () => {
       try {
-        // Using your requested route: /api/product/getBrands
         const res = await fetch(
           `/api/product/getBrands?categoryId=${categoryId}`,
           { signal: abort.signal }
         );
         const data = await res.json();
-        console.log("data::", data);
-        if (!ignore && !data.error) {
-          // Accept either { items: [...] } or a plain array; normalize to { id, name }
-          const rawList = Array.isArray(data?.items)
-            ? data.items
-            : Array.isArray(data)
-            ? data
-            : [];
-          const normalized = rawList
-            .map((b) => ({
-              id: b.brandId || b._id || b.id,
-              name: b.name,
-            }))
-            .filter((b) => b.id && b.name);
+        const rawList = Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data)
+          ? data
+          : [];
+        const normalized = rawList
+          .map((b) => ({
+            id: b.brandId || b._id || b.id,
+            name: b.name,
+          }))
+          .filter((b) => b.id && b.name);
+        if (!ignore) {
           setBrands(normalized);
           setSelectedBrand("");
         }
@@ -147,7 +134,7 @@ const AddProductComponent = () => {
     };
   }, [selectedSubCategory, selectedCategory]);
 
-  /* ======================= Per-row handlers ======================= */
+  // ----- handlers (unchanged) -----
   const handleVariantChange = (rowIdx, variantId, value) => {
     setRows((prev) => {
       const next = [...prev];
@@ -181,7 +168,6 @@ const AddProductComponent = () => {
     );
   };
 
-  // Dynamically grow gallery array so user can add up to 10 images
   const handleGalleryChange = (rowIdx, index, e) => {
     const file = e.target.files?.[0] || null;
     setRows((prev) =>
@@ -208,10 +194,7 @@ const AddProductComponent = () => {
               ...r,
               galleryFiles: r.galleryFiles
                 .map((f, j) => (j === index ? null : f))
-                .filter((x, j, arr) => {
-                  if (j === arr.length - 1 && x === null) return false;
-                  return true;
-                }),
+                .filter((x, j, arr) => !(j === arr.length - 1 && x === null)),
             }
           : r
       )
@@ -222,17 +205,15 @@ const AddProductComponent = () => {
   const removeRow = (idx) =>
     setRows((prev) => prev.filter((_, i) => i !== idx));
 
-  /* ======================= Validation ======================= */
+  // ----- validation + submit (unchanged) -----
   const validateForm = () => {
     setError("");
     if (!name.trim()) return setError("Please enter a product name."), false;
     if (!description.trim())
       return setError("Please enter a product description."), false;
-
     const categoryId = selectedSubCategory || selectedCategory;
     if (!categoryId)
       return setError("Please choose a category or subcategory."), false;
-
     if (!selectedBrand) return setError("Please select a brand."), false;
 
     for (let i = 0; i < rows.length; i++) {
@@ -274,11 +255,9 @@ const AddProductComponent = () => {
           false
         );
     }
-
     return true;
   };
 
-  /* ======================= Submit ======================= */
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -286,8 +265,6 @@ const AddProductComponent = () => {
     setError("");
     try {
       const categoryId = selectedSubCategory || selectedCategory;
-
-      // Upload images per-variant row and build the payload
       const rowsPayload = [];
       for (const row of rows) {
         const thumbnail_img = await s3Upload(
@@ -302,29 +279,26 @@ const AddProductComponent = () => {
               )
             )
           : [];
-
         rowsPayload.push({
           values: row.values,
-          MRP: Number(row.MRP),
-          SP: Number(row.SP),
+          sellerMRP: Number(row.MRP),
+          sellerSP: Number(row.SP),
           totalStock: Number(row.totalStocks),
           thumbnail_img,
           side_imgs,
         });
       }
-
       const res = await api.post(
         "/product/createProduct",
         {
           categoryId,
-          brandId: selectedBrand, // included in payload
+          brandId: selectedBrand,
           name: name.trim(),
           description: description.trim(),
           variantRows: rowsPayload,
         },
         { withCredentials: true }
       );
-
       const data = res.data;
       setSuccessMsg(data?.message || "Product created");
       setSuccessOpen(true);
@@ -336,38 +310,38 @@ const AddProductComponent = () => {
     }
   };
 
+  /* ---------------- UI: match ProductList ---------------- */
   return (
-    <div className="flex-1 min-h-screen flex flex-col items-center bg-gradient-to-b from-white to-gray-50">
-      <form
-        onSubmit={handleSubmit}
-        className="md:p-10 p-4 space-y-6 w-full max-w-3xl"
-      >
-        <h1 className="text-2xl font-semibold tracking-tight">Add Product</h1>
+    <div className="w-full">
+      <form onSubmit={handleSubmit} className="space-y-6">
         <ErrorBanner message={error} />
 
         {/* Basic Info */}
-        <div className="flex flex-col gap-1 max-w-xl">
-          <label className="text-sm font-medium">Product Name</label>
-          <input
-            type="text"
-            className="outline-none py-2.5 px-3 rounded-lg border border-gray-300 focus:border-gray-500"
-            onChange={(e) => setName(e.target.value)}
-            value={name}
-            required
-          />
-        </div>
-        <div className="flex flex-col gap-1 max-w-xl">
-          <label className="text-sm font-medium">Product Description</label>
-          <textarea
-            rows={4}
-            className="outline-none py-2.5 px-3 rounded-lg border border-gray-300 focus:border-gray-500 resize-y"
-            onChange={(e) => setDescription(e.target.value)}
-            value={description}
-            required
-          />
+        <div className="grid gap-4 sm:max-w-xl">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium">Product Name</label>
+            <input
+              type="text"
+              className="outline-none py-2.5 px-3 rounded-lg border border-gray-300 focus:border-gray-500"
+              onChange={(e) => setName(e.target.value)}
+              value={name}
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium">Product Description</label>
+            <textarea
+              rows={4}
+              className="outline-none py-2.5 px-3 rounded-lg border border-gray-300 focus:border-gray-500 resize-y"
+              onChange={(e) => setDescription(e.target.value)}
+              value={description}
+              required
+            />
+          </div>
         </div>
 
-        {/* Category + Subcategory + Brand (inline, compact) */}
+        {/* Category + Brand */}
         <CategorySelector
           categories={categories}
           selectedCategory={selectedCategory}
@@ -380,7 +354,7 @@ const AddProductComponent = () => {
           setSelectedBrand={setSelectedBrand}
         />
 
-        {/* Variant boxes (each contains selectors + price + images) */}
+        {/* Variant boxes */}
         <VariantList
           variants={variants}
           rows={rows}
@@ -398,7 +372,7 @@ const AddProductComponent = () => {
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-2.5 bg-orange-600 text-white font-medium rounded-lg disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-white shadow-sm hover:bg-orange-700 active:scale-[.98] disabled:opacity-60"
           >
             {loading ? "Saving..." : "Add Product"}
           </button>
