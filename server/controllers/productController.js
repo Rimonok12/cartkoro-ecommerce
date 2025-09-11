@@ -73,6 +73,79 @@ const getCategories = async (_req, res) => {
   }
 };
 
+const getHomeCategories = async (_req, res) => {
+  try {
+    // 1) Fetch all categories
+    const all = await Category.find({}, { _id: 1, name: 1, level: 1 }).lean();
+
+    // Children are those where level != _id
+    const children = all.filter((c) => String(c.level) !== String(c._id));
+
+    const childIds = children.map((c) => c._id);
+
+    // 2) Fetch active products under these children
+    const products = await Product.find({
+      status: 1,
+      category_id: { $in: childIds },
+    })
+      .select("_id category_id createdAt")
+      .lean();
+
+    const productIds = products.map((p) => p._id);
+
+    // 3) Fetch SKUs (oldest first)
+    const skus = await ProductSku.find({
+      product_id: { $in: productIds },
+    })
+      .select("_id product_id thumbnail_img status createdAt")
+      .sort({ createdAt: 1 })
+      .lean();
+
+    // 4) First ACTIVE sku per product
+    const firstActiveSkuByProduct = {};
+    for (const sku of skus) {
+      const pid = String(sku.product_id);
+      if (!firstActiveSkuByProduct[pid] && sku.status === 1) {
+        firstActiveSkuByProduct[pid] = sku;
+      }
+    }
+
+    // 5) Representative SKU per child category (oldest product that has active sku)
+    const productsSorted = [...products].sort(
+      (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+    );
+
+    const repSkuByCategory = {};
+    for (const p of productsSorted) {
+      const sku = firstActiveSkuByProduct[String(p._id)];
+      if (!sku) continue;
+      const catId = String(p.category_id);
+      if (!repSkuByCategory[catId]) {
+        repSkuByCategory[catId] = sku;
+      }
+    }
+
+    // 6) Final result: only children
+    const result = children.map((c) => {
+      const sku = repSkuByCategory[String(c._id)];
+      return {
+        _id: c._id,
+        name: c.name,
+        sku_id: sku?._id || null,
+        thumbnail_img: sku?.thumbnail_img || null,
+      };
+    });
+
+    // Optional: sort alphabetically
+    result.sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.json(result);
+  } catch (err) {
+    console.error("getHomeCategories error", err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 /* ======================= BRAND ======================= */
 const createBrand = async (req, res) => {
   try {
@@ -176,110 +249,6 @@ const getVariants = async (req, res) => {
 };
 
 /* ======================= PRODUCT ======================= */
-// const createProduct = async (req, res) => {
-//   const session = await mongoose.startSession();
-//   session.startTransaction();
-
-//   try {
-//     const { categoryId, brandId, name, description, variantRows } = req.body;
-//     console.log(
-//       "creteProd::",
-//       categoryId,
-//       brandId,
-//       name,
-//       description,
-//       variantRows
-//     );
-
-//     if (
-//       !categoryId ||
-//       !name ||
-//       !Array.isArray(variantRows) ||
-//       variantRows.length === 0
-//     ) {
-//       return res.status(400).json({ message: "Missing required fields" });
-//     }
-
-//     const userId = req.user?.userId; // if you attach user earlier
-
-//     // Fetch active margin for this category (if any)
-//     const margin = await CategoryMargin.findOne({
-//       category_id: categoryId,
-//       is_active: true,
-//     })
-//       .lean()
-//       .session(session);
-
-//     const applyPct = (val, pct) => {
-//       if (typeof val !== "number") return val; // leave undefined/null/other types alone
-//       if (typeof pct !== "number") return val;
-//       // round to nearest integer to keep consistency; tweak as needed
-//       return Math.round(val * (1 + pct / 100));
-//     };
-
-//     // Step 1: Create Product
-//     const product = new Product({
-//       category_id: categoryId,
-//       name,
-//       brandId,
-//       description,
-//       status: 1,
-//       userId,
-//     });
-
-//     await product.save({ session });
-
-//     // Step 2: Create SKUs (apply margins only to SP/MRP if margin present)
-//     const skuDocs = variantRows.map((v) => {
-//       // start with incoming values
-//       let incomingMRP = v.MRP;
-//       let incomingSP = v.SP;
-
-//       // apply margins if available
-//       let adjMRP =
-//         margin && typeof margin.mrp_percent === "number"
-//           ? applyPct(incomingMRP, margin.mrp_percent)
-//           : incomingMRP;
-
-//       let adjSP =
-//         margin && typeof margin.sp_percent === "number"
-//           ? applyPct(incomingSP, margin.sp_percent)
-//           : incomingSP;
-
-//       // keep business rule: SP <= MRP (only when both exist)
-//       if (
-//         typeof adjMRP === "number" &&
-//         typeof adjSP === "number" &&
-//         adjSP > adjMRP
-//       ) {
-//         adjSP = adjMRP;
-//       }
-
-//       return {
-//         product_id: product._id,
-//         variant_values: v.values, // e.g. {color:'red', size:'L'}
-//         initial_stock: v.totalStock,
-//         MRP: adjMRP,
-//         SP: adjSP,
-//         thumbnail_img: v.thumbnail_img,
-//         side_imgs: Array.isArray(v.side_imgs) ? v.side_imgs : [],
-//         status: 1,
-//       };
-//     });
-
-//     await ProductSku.insertMany(skuDocs, { session });
-
-//     await session.commitTransaction();
-//     session.endSession();
-
-//     return res.status(201).json({ message: "Product Successfully Added" });
-//   } catch (error) {
-//     await session.abortTransaction();
-//     session.endSession();
-//     console.error("createProduct Error", error);
-//     return res.status(500).json({ error: error.message || error });
-//   }
-// };
 const createProduct = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -457,81 +426,6 @@ const getAllProducts = async (req, res) => {
   }
 };
 
-// const getProductBySkuId = async (req, res) => {
-//   try {
-//     const { skuId } = req.params;
-
-//     // 1. Find the requested SKU
-//     const sku = await ProductSku.findById(skuId)
-//       .select("-__v -createdAt -updatedAt")
-//       .lean();
-//     if (!sku) {
-//       return res.status(404).json({ message: "SKU not found" });
-//     }
-
-//     // 2. Find its parent Product
-//     const product = await Product.findById(sku.product_id)
-//       .populate("category_id", "name")
-//       .select("-__v -createdAt -updatedAt")
-//       .lean();
-
-//     if (!product) {
-//       return res.status(404).json({ message: "Parent product not found" });
-//     }
-
-//     // 3. Fetch variants for this category
-//     const variants = await Variant.find({
-//       category_id: product.category_id,
-//     }).lean();
-//     const variantMap = {};
-//     variants.forEach((v) => {
-//       variantMap[v._id.toString()] = v.name; // {variantId: "Color"}
-//     });
-
-//     // 4. Get all SKUs for same product
-//     const allSkus = await ProductSku.find({ product_id: sku.product_id })
-//       .select("-__v -createdAt -updatedAt -product_id")
-//       .lean();
-
-//     // helper: convert variant_values {variantId: value} → {variantName: value}
-//     const transformVariants = (skuDoc) => {
-//       const { product_id, initial_stock, sold_stock, ...rest } = skuDoc; // strip product_id, initial_stock, sold_stock
-//       const newVariants = {};
-//       for (const [vId, val] of Object.entries(skuDoc.variant_values || {})) {
-//         const variantName = variantMap[vId] || vId;
-//         newVariants[variantName] = val;
-//       }
-//       return {
-//         ...rest,
-//         variant_values: newVariants,
-//         left_stock: (initial_stock || 0) - (sold_stock || 0),
-//       };
-//     };
-
-//     // Transform requested sku + other skus
-//     const main_sku = transformVariants(sku);
-//     const other_skus = allSkus
-//       .filter((s) => String(s._id) !== String(sku._id))
-//       .map(transformVariants);
-
-//     // 5. Final response
-//     const result = {
-//       product_id: product._id,
-//       product_name: product.name,
-//       product_description: product.description,
-//       product_status: product.status,
-//       category_id: product.category_id?._id || null,
-//       category_name: product.category_id?.name || null,
-//       main_sku,
-//       other_skus,
-//     };
-
-//     return res.json(result);
-//   } catch (err) {
-//     console.error("getProductBySku error", err);
-//     return res.status(500).json({ message: err.message });
-//   }
-// };
 const getProductBySkuId = async (req, res) => {
   try {
     const { skuId } = req.params;
@@ -740,4 +634,5 @@ module.exports = {
   getAllProducts,
   getProductBySkuId,
   getAllProductsBySeller,
+  getHomeCategories,
 };

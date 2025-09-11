@@ -1,3 +1,368 @@
+// // client/pages/cart.jsx
+// "use client";
+
+// import React, { useEffect, useMemo, useRef, useState } from "react";
+// import Link from "next/link";
+// import Image from "next/image";
+// import Navbar from "@/components/Navbar";
+// import OrderSummary from "@/components/OrderSummary";
+// import { assets } from "@/assets/assets";
+// import { useAppContext } from "@/context/AppContext";
+// import api from "@/lib/axios";
+// import { essentialsOnLoad } from "@/lib/ssrHelper";
+
+// // ✅ SSR guard (pages router)
+// export async function getServerSideProps(context) {
+//   const { req } = context;
+//   const cookies = req.cookies || {};
+//   if (!cookies["CK-REF-T"]) {
+//     return { redirect: { destination: "/login", permanent: false } };
+//   }
+//   const essentials = await essentialsOnLoad(context);
+//   return { props: { ...essentials.props } };
+// }
+
+// /** Product normalizer — includes MRP */
+// function normFromHandler(payload) {
+//   const root = payload?.data ?? payload ?? {};
+//   const sku = root.main_sku || root.sku || root.skuData || root.sku_info || {};
+
+//   const productName =
+//     root.product_name ||
+//     root.product?.name ||
+//     root.productData?.name ||
+//     "Product";
+
+//   const sp = Number(
+//     sku?.SP ?? sku?.sp ?? sku?.price ?? sku?.selling_price ?? 0
+//   );
+
+//   const mrp = Number(sku?.MRP ?? sku?.mrp ?? sp);
+
+//   const thumb =
+//     sku?.thumbnail_img ||
+//     (Array.isArray(sku?.side_imgs) && sku.side_imgs.length
+//       ? sku.side_imgs[0]
+//       : "") ||
+//     "";
+
+//   return {
+//     sku_id: sku?._id || sku?.sku_id || root?.sku_id || root?.id || null,
+//     name: productName,
+//     sp: Number.isFinite(sp) ? sp : 0,
+//     mrp: Number.isFinite(mrp) ? mrp : Number.isFinite(sp) ? sp : 0,
+//     thumbnailImg: thumb,
+//   };
+// }
+
+// /** Fetch details for ONE sku via your handler (uses path param) */
+// async function fetchSkuViaHandler(id) {
+//   try {
+//     const r = await fetch(
+//       `/api/product/getProductBySkuId/${encodeURIComponent(id)}`
+//     );
+//     if (!r.ok) return null;
+//     const json = await r.json().catch(() => null);
+//     return normFromHandler(json);
+//   } catch {
+//     return null;
+//   }
+// }
+
+// /** debounce helper (kept in case you want to debounce other actions later) */
+// function useDebouncedCallback(cb, delay = 400) {
+//   const t = useRef(null);
+//   return (...args) => {
+//     if (t.current) clearTimeout(t.current);
+//     t.current = setTimeout(() => cb(...args), delay);
+//   };
+// }
+
+// export default function Cart() {
+//   const { cartData, updateCartQuantity, getCartCount, currency } =
+//     useAppContext();
+
+//   const items = useMemo(() => cartData?.items || [], [cartData?.items]);
+//   const [enriched, setEnriched] = useState({}); // sku_id -> { name, sp, mrp, thumbnailImg }
+
+//   // 🔹 Sync to server ONLY after user-initiated changes (replace on server)
+//   const syncNow = async (nextItems) => {
+//     try {
+//       await api.post(
+//         "/user/updateCart",
+//         {
+//           items: nextItems.map(({ sku_id, quantity }) => ({
+//             sku_id,
+//             quantity: Number(quantity) || 1,
+//           })),
+//           merge: false,
+//         },
+//         { withCredentials: true }
+//       );
+//     } catch (e) {
+//       console.error("Cart sync failed:", e?.message || e);
+//     }
+//   };
+
+//   // Enrich rows that don’t already carry details
+//   useEffect(() => {
+//     let cancelled = false;
+//     (async () => {
+//       const needIds = [];
+//       const prime = {};
+//       for (const it of items) {
+//         const hasDetails = !!(
+//           it?.name ||
+//           it?.sp != null ||
+//           it?.thumbnailImg ||
+//           it?.mrp != null
+//         );
+//         if (hasDetails) {
+//           prime[it.sku_id] = {
+//             sku_id: it.sku_id,
+//             name: it.name,
+//             sp: Number(it.sp ?? it.price ?? 0) || 0,
+//             mrp:
+//               Number(
+//                 it.mrp ??
+//                   it.MRP ??
+//                   it.listPrice ??
+//                   it.priceBeforeDiscount ??
+//                   it.sp ??
+//                   0
+//               ) || 0,
+//             thumbnailImg: it.thumbnailImg || "",
+//           };
+//         } else if (it?.sku_id) {
+//           needIds.push(it.sku_id);
+//         }
+//       }
+//       let fetchedMap = {};
+//       if (needIds.length) {
+//         const results = await Promise.all(needIds.map(fetchSkuViaHandler));
+//         for (const row of results) {
+//           if (row?.sku_id) fetchedMap[row.sku_id] = row;
+//         }
+//       }
+//       if (!cancelled) setEnriched({ ...fetchedMap, ...prime });
+//     })();
+//     return () => {
+//       cancelled = true;
+//     };
+//   }, [items]);
+
+//   // Build display rows (+ add product URL)
+//   const rows = items.map((it) => {
+//     const e = enriched[it.sku_id] || {};
+//     const sp = Number(it.sp ?? it.price ?? e.sp ?? 0) || 0;
+//     const mrp = Number(it.mrp ?? it.MRP ?? e.mrp ?? e.MRP ?? 0) || 0;
+//     return {
+//       sku_id: it.sku_id,
+//       quantity: Number(it.quantity) || 1,
+//       name: it.name ?? e.name ?? "Product",
+//       sp,
+//       mrp,
+//       thumbnailImg: it.thumbnail_img ?? it.thumbnailImg ?? e.thumbnailImg ?? "",
+//       url: `/product/${it.sku_id}`, // 👈 product detail link
+//     };
+//   });
+
+//   const subtotal = rows.reduce((sum, r) => sum + r.sp * r.quantity, 0);
+
+//   const percentOff = (mrp, sp) => {
+//     if (!mrp || mrp <= sp) return 0;
+//     return Math.round(((mrp - sp) / mrp) * 100);
+//   };
+
+//   // --- UI handlers (update context, then persist to server)
+//   const setQty = async (sku_id, quantity) => {
+//     let q = parseInt(quantity, 10);
+//     if (isNaN(q) || q < 1) q = 1;
+
+//     // update local
+//     updateCartQuantity(sku_id, q);
+
+//     // compute next items & sync
+//     const next = items.map((it) =>
+//       it.sku_id === sku_id ? { ...it, quantity: q } : it
+//     );
+//     await syncNow(next);
+//   };
+
+//   const inc = (sku_id, cur) => setQty(sku_id, (Number(cur) || 1) + 1);
+//   const dec = (sku_id, cur) =>
+//     setQty(sku_id, Math.max(1, (Number(cur) || 1) - 1));
+
+//   const remove = async (sku_id) => {
+//     updateCartQuantity(sku_id, 0);
+//     const next = items.filter((it) => it.sku_id !== sku_id);
+//     await syncNow(next);
+//   };
+
+//   return (
+//     <>
+//       <Navbar />
+//       <div className="flex flex-col md:flex-row gap-6 md:gap-10 px-4 md:px-16 lg:px-32 pt-14 mb-20">
+//         {/* LEFT: CART */}
+//         <div className="flex-1 min-w-0">
+//           <div className="flex items-center justify-between mb-3">
+//             <p className="text-2xl md:text-3xl text-gray-700">
+//               Your <span className="font-semibold text-orange-600">Cart</span>
+//             </p>
+//             <p className="text-sm md:text-lg text-gray-500/90">
+//               {getCartCount()} Item{getCartCount() === 1 ? "" : "s"}
+//             </p>
+//           </div>
+
+//           {rows.length === 0 ? (
+//             <div className="text-center py-20 text-gray-500">
+//               Your cart is empty 🛒
+//             </div>
+//           ) : (
+//             <>
+//               <div className="max-h-[62vh] md:max-h-none overflow-y-auto md:overflow-visible pr-1 space-y-3 md:space-y-4 md:max-w-3xl">
+//                 {rows.map((item) => (
+//                   <div
+//                     key={item.sku_id}
+//                     className="rounded-2xl ring-1 ring-black/5 bg-white p-3 md:p-4"
+//                   >
+//                     <div className="flex gap-3 md:gap-4">
+//                       {/* 👉 Image links to product */}
+//                       <Link
+//                         href={item.url}
+//                         className="shrink-0 rounded-lg overflow-hidden bg-slate-100 p-2"
+//                         title="View product"
+//                       >
+//                         {item.thumbnailImg ? (
+//                           <Image
+//                             src={item.thumbnailImg}
+//                             alt={item.name}
+//                             width={80}
+//                             height={80}
+//                             className="h-20 w-20 md:h-24 md:w-24 object-cover"
+//                           />
+//                         ) : (
+//                           <div className="h-20 w-20 md:h-24 md:w-24 rounded bg-gray-100 border border-gray-200" />
+//                         )}
+//                       </Link>
+
+//                       <div className="min-w-0 flex-1">
+//                         {/* 👉 Name links to product */}
+//                         {/* 👉 Name links to product, clamped to 2 lines with ellipsis */}
+//                         <Link
+//                           href={item.url}
+//                           className="block font-medium text-slate-900 md:text-base hover:underline break-words"
+//                           title={item.name}
+//                           style={{
+//                             display: "-webkit-box",
+//                             WebkitBoxOrient: "vertical",
+//                             WebkitLineClamp: 2, // clamp to 2 lines
+//                             overflow: "hidden", // hide the rest
+//                             wordBreak: "break-word", // break long words
+//                             hyphens: "auto",
+//                             lineHeight: "1.25",
+//                           }}
+//                         >
+//                           {item.name}
+//                         </Link>
+
+//                         {/* Vertical price block */}
+//                         <div className="mt-1 flex flex-col">
+//                           {item.mrp > 0 && item.mrp > item.sp && (
+//                             <span className="text-gray-500 line-through text-sm">
+//                               {currency} {item.mrp.toFixed(2)}
+//                             </span>
+//                           )}
+//                           <div className="flex items-center gap-2">
+//                             <span className="text-gray-900 font-semibold md:text-lg">
+//                               {currency} {item.sp.toFixed(2)}
+//                             </span>
+//                             {item.mrp > item.sp && (
+//                               <span className="rounded bg-green-50 px-2 py-0.5 text-[11px] md:text-xs font-semibold text-green-700">
+//                                 {percentOff(item.mrp, item.sp)}% off
+//                               </span>
+//                             )}
+//                           </div>
+//                           <div className="mt-1 text-sm md:text-base text-slate-900 font-medium">
+//                             Subtotal: {currency}{" "}
+//                             {(item.sp * item.quantity).toFixed(2)}
+//                           </div>
+//                         </div>
+
+//                         {/* qty controls */}
+//                         <div className="mt-3 flex items-center gap-2 md:gap-3">
+//                           <button
+//                             onClick={() => dec(item.sku_id, item.quantity)}
+//                             disabled={item.quantity <= 1}
+//                             className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center rounded border border-slate-300"
+//                             title="Decrease"
+//                           >
+//                             <Image
+//                               src={assets.decrease_arrow}
+//                               alt="-"
+//                               className="h-4 w-4 md:h-5 md:w-5"
+//                             />
+//                           </button>
+
+//                           <input
+//                             type="number"
+//                             min={1}
+//                             value={item.quantity}
+//                             onChange={(e) => {
+//                               let val = parseInt(e.target.value, 10);
+//                               if (isNaN(val) || val < 1) val = 1;
+//                               setQty(item.sku_id, val);
+//                             }}
+//                             className="h-8 w-12 md:h-9 md:w-16 rounded border border-slate-300 text-center outline-none"
+//                           />
+
+//                           <button
+//                             onClick={() => inc(item.sku_id, item.quantity)}
+//                             className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center rounded border border-slate-300"
+//                             title="Increase"
+//                           >
+//                             <Image
+//                               src={assets.increase_arrow}
+//                               alt="+"
+//                               className="h-4 w-4 md:h-5 md:w-5"
+//                             />
+//                           </button>
+
+//                           <button
+//                             className="ml-auto text-xs md:text-sm text-orange-600 hover:underline"
+//                             onClick={() => remove(item.sku_id)}
+//                           >
+//                             Remove
+//                           </button>
+//                         </div>
+//                       </div>
+//                     </div>
+//                   </div>
+//                 ))}
+//               </div>
+//             </>
+//           )}
+
+//           <button
+//             onClick={() => (window.location.href = "/")}
+//             className="group mt-6 inline-flex items-center gap-2 text-orange-600"
+//           >
+//             <Image
+//               className="transition group-hover:-translate-x-1"
+//               src={assets.arrow_right_icon_colored}
+//               alt="arrow"
+//             />
+//             Continue Shopping
+//           </button>
+//         </div>
+
+//         {/* RIGHT: SUMMARY */}
+//         <OrderSummary rows={rows} subtotal={subtotal} />
+//       </div>
+//     </>
+//   );
+// }
+
 // client/pages/cart.jsx
 "use client";
 
@@ -22,7 +387,7 @@ export async function getServerSideProps(context) {
   return { props: { ...essentials.props } };
 }
 
-/** Product normalizer — includes MRP */
+/** Product normalizer — includes MRP & available stock */
 function normFromHandler(payload) {
   const root = payload?.data ?? payload ?? {};
   const sku = root.main_sku || root.sku || root.skuData || root.sku_info || {};
@@ -46,12 +411,27 @@ function normFromHandler(payload) {
       : "") ||
     "";
 
+  // Prefer precise left_stock from backend; otherwise compute from fields if present
+  const leftStock =
+    (Number.isFinite(Number(sku?.left_stock)) && Number(sku.left_stock)) ||
+    (Number.isFinite(Number(sku?.initial_stock)) &&
+    Number.isFinite(Number(sku?.sold_stock))
+      ? Number(sku.initial_stock) - Number(sku.sold_stock)
+      : undefined);
+
+  // Normalize to non-negative integer when known
+  const availableQty =
+    typeof leftStock === "number" && Number.isFinite(leftStock)
+      ? Math.max(0, Math.floor(leftStock))
+      : undefined;
+
   return {
     sku_id: sku?._id || sku?.sku_id || root?.sku_id || root?.id || null,
     name: productName,
     sp: Number.isFinite(sp) ? sp : 0,
     mrp: Number.isFinite(mrp) ? mrp : Number.isFinite(sp) ? sp : 0,
     thumbnailImg: thumb,
+    availableQty, // number | undefined
   };
 }
 
@@ -83,7 +463,7 @@ export default function Cart() {
     useAppContext();
 
   const items = useMemo(() => cartData?.items || [], [cartData?.items]);
-  const [enriched, setEnriched] = useState({}); // sku_id -> { name, sp, mrp, thumbnailImg }
+  const [enriched, setEnriched] = useState({}); // sku_id -> { name, sp, mrp, thumbnailImg, availableQty }
 
   // 🔹 Sync to server ONLY after user-initiated changes (replace on server)
   const syncNow = async (nextItems) => {
@@ -118,6 +498,10 @@ export default function Cart() {
           it?.mrp != null
         );
         if (hasDetails) {
+          // Pull any availableQty if present on item already
+          const availableQty = Number.isFinite(Number(it.availableQty))
+            ? Math.max(0, Number(it.availableQty))
+            : undefined;
           prime[it.sku_id] = {
             sku_id: it.sku_id,
             name: it.name,
@@ -132,6 +516,7 @@ export default function Cart() {
                   0
               ) || 0,
             thumbnailImg: it.thumbnailImg || "",
+            availableQty,
           };
         } else if (it?.sku_id) {
           needIds.push(it.sku_id);
@@ -156,16 +541,40 @@ export default function Cart() {
     const e = enriched[it.sku_id] || {};
     const sp = Number(it.sp ?? it.price ?? e.sp ?? 0) || 0;
     const mrp = Number(it.mrp ?? it.MRP ?? e.mrp ?? e.MRP ?? 0) || 0;
+    const availableQty =
+      Number.isFinite(Number(e.availableQty)) && Number(e.availableQty) >= 0
+        ? Number(e.availableQty)
+        : undefined;
     return {
       sku_id: it.sku_id,
       quantity: Number(it.quantity) || 1,
       name: it.name ?? e.name ?? "Product",
       sp,
       mrp,
+      availableQty,
       thumbnailImg: it.thumbnail_img ?? it.thumbnailImg ?? e.thumbnailImg ?? "",
       url: `/product/${it.sku_id}`, // 👈 product detail link
     };
   });
+
+  // Auto-clamp any quantities that exceed available stock after enrichment
+  useEffect(() => {
+    const needsClamp = rows.some(
+      (r) => Number.isFinite(r.availableQty) && r.quantity > r.availableQty
+    );
+    if (!needsClamp) return;
+
+    const next = rows.map((r) => ({
+      sku_id: r.sku_id,
+      quantity: Number.isFinite(r.availableQty)
+        ? Math.max(0, Math.min(r.quantity, r.availableQty)) || 1
+        : r.quantity,
+    }));
+
+    // Update local context & sync
+    next.forEach((it) => updateCartQuantity(it.sku_id, it.quantity));
+    syncNow(next);
+  }, [enriched]);
 
   const subtotal = rows.reduce((sum, r) => sum + r.sp * r.quantity, 0);
 
@@ -174,10 +583,25 @@ export default function Cart() {
     return Math.round(((mrp - sp) / mrp) * 100);
   };
 
-  // --- UI handlers (update context, then persist to server)
+  // --- UI handlers (update context, then persist to server); respect stock caps
   const setQty = async (sku_id, quantity) => {
     let q = parseInt(quantity, 10);
     if (isNaN(q) || q < 1) q = 1;
+
+    const e = enriched[sku_id];
+    const cap = Number.isFinite(Number(e?.availableQty))
+      ? Math.max(0, Number(e.availableQty))
+      : undefined;
+
+    if (cap === 0) {
+      alert("This item is currently out of stock.");
+      return;
+    }
+
+    if (Number.isFinite(cap) && q > cap) {
+      q = cap;
+      alert(`Only ${cap} left in stock for this item.`);
+    }
 
     // update local
     updateCartQuantity(sku_id, q);
@@ -189,7 +613,20 @@ export default function Cart() {
     await syncNow(next);
   };
 
-  const inc = (sku_id, cur) => setQty(sku_id, (Number(cur) || 1) + 1);
+  const inc = (sku_id, cur) => {
+    const e = enriched[sku_id];
+    const cap = Number.isFinite(Number(e?.availableQty))
+      ? Math.max(0, Number(e.availableQty))
+      : undefined;
+
+    const nextVal = (Number(cur) || 1) + 1;
+    if (Number.isFinite(cap) && nextVal > cap) {
+      alert(`Only ${cap} in stock. You cannot add more.`);
+      return;
+    }
+    setQty(sku_id, nextVal);
+  };
+
   const dec = (sku_id, cur) =>
     setQty(sku_id, Math.max(1, (Number(cur) || 1) - 1));
 
@@ -221,124 +658,158 @@ export default function Cart() {
           ) : (
             <>
               <div className="max-h-[62vh] md:max-h-none overflow-y-auto md:overflow-visible pr-1 space-y-3 md:space-y-4 md:max-w-3xl">
-                {rows.map((item) => (
-                  <div
-                    key={item.sku_id}
-                    className="rounded-2xl ring-1 ring-black/5 bg-white p-3 md:p-4"
-                  >
-                    <div className="flex gap-3 md:gap-4">
-                      {/* 👉 Image links to product */}
-                      <Link
-                        href={item.url}
-                        className="shrink-0 rounded-lg overflow-hidden bg-slate-100 p-2"
-                        title="View product"
-                      >
-                        {item.thumbnailImg ? (
-                          <Image
-                            src={item.thumbnailImg}
-                            alt={item.name}
-                            width={80}
-                            height={80}
-                            className="h-20 w-20 md:h-24 md:w-24 object-cover"
-                          />
-                        ) : (
-                          <div className="h-20 w-20 md:h-24 md:w-24 rounded bg-gray-100 border border-gray-200" />
-                        )}
-                      </Link>
+                {rows.map((item) => {
+                  const atCap =
+                    Number.isFinite(item.availableQty) &&
+                    item.quantity >= item.availableQty;
+                  const outOfStock = item.availableQty === 0;
 
-                      <div className="min-w-0 flex-1">
-                        {/* 👉 Name links to product */}
-                        {/* 👉 Name links to product, clamped to 2 lines with ellipsis */}
+                  return (
+                    <div
+                      key={item.sku_id}
+                      className={`rounded-2xl ring-1 ring-black/5 bg-white p-3 md:p-4 ${
+                        outOfStock ? "opacity-80" : ""
+                      }`}
+                    >
+                      <div className="flex gap-3 md:gap-4">
+                        {/* 👉 Image links to product */}
                         <Link
                           href={item.url}
-                          className="block font-medium text-slate-900 md:text-base hover:underline break-words"
-                          title={item.name}
-                          style={{
-                            display: "-webkit-box",
-                            WebkitBoxOrient: "vertical",
-                            WebkitLineClamp: 2, // clamp to 2 lines
-                            overflow: "hidden", // hide the rest
-                            wordBreak: "break-word", // break long words
-                            hyphens: "auto",
-                            lineHeight: "1.25",
-                          }}
+                          className="shrink-0 rounded-lg overflow-hidden bg-slate-100 p-2"
+                          title="View product"
                         >
-                          {item.name}
+                          {item.thumbnailImg ? (
+                            <Image
+                              src={item.thumbnailImg}
+                              alt={item.name}
+                              width={80}
+                              height={80}
+                              className="h-20 w-20 md:h-24 md:w-24 object-cover"
+                            />
+                          ) : (
+                            <div className="h-20 w-20 md:h-24 md:w-24 rounded bg-gray-100 border border-gray-200" />
+                          )}
                         </Link>
 
-                        {/* Vertical price block */}
-                        <div className="mt-1 flex flex-col">
-                          {item.mrp > 0 && item.mrp > item.sp && (
-                            <span className="text-gray-500 line-through text-sm">
-                              {currency} {item.mrp.toFixed(2)}
+                        <div className="min-w-0 flex-1">
+                          {/* 👉 Name links to product, clamped to 2 lines with ellipsis */}
+                          <Link
+                            href={item.url}
+                            className="block font-medium text-slate-900 md:text-base hover:underline break-words"
+                            title={item.name}
+                            style={{
+                              display: "-webkit-box",
+                              WebkitBoxOrient: "vertical",
+                              WebkitLineClamp: 2,
+                              overflow: "hidden",
+                              wordBreak: "break-word",
+                              hyphens: "auto",
+                              lineHeight: "1.25",
+                            }}
+                          >
+                            {item.name}
+                          </Link>
+
+                          {/* Stock badges */}
+                          {outOfStock ? (
+                            <span className="inline-block mt-1 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">
+                              Out of stock
                             </span>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-900 font-semibold md:text-lg">
-                              {currency} {item.sp.toFixed(2)}
+                          ) : Number.isFinite(item.availableQty) ? (
+                            <span className="inline-block mt-1 text-[11px] font-medium text-gray-600">
+                              In stock: {item.availableQty}
                             </span>
-                            {item.mrp > item.sp && (
-                              <span className="rounded bg-green-50 px-2 py-0.5 text-[11px] md:text-xs font-semibold text-green-700">
-                                {percentOff(item.mrp, item.sp)}% off
+                          ) : null}
+
+                          {/* Vertical price block */}
+                          <div className="mt-1 flex flex-col">
+                            {item.mrp > 0 && item.mrp > item.sp && (
+                              <span className="text-gray-500 line-through text-sm">
+                                {currency} {item.mrp.toFixed(2)}
                               </span>
                             )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-900 font-semibold md:text-lg">
+                                {currency} {item.sp.toFixed(2)}
+                              </span>
+                              {item.mrp > item.sp && (
+                                <span className="rounded bg-green-50 px-2 py-0.5 text-[11px] md:text-xs font-semibold text-green-700">
+                                  {percentOff(item.mrp, item.sp)}% off
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1 text-sm md:text-base text-slate-900 font-medium">
+                              Subtotal: {currency}{" "}
+                              {(item.sp * item.quantity).toFixed(2)}
+                            </div>
                           </div>
-                          <div className="mt-1 text-sm md:text-base text-slate-900 font-medium">
-                            Subtotal: {currency}{" "}
-                            {(item.sp * item.quantity).toFixed(2)}
+
+                          {/* qty controls */}
+                          <div className="mt-3 flex items-center gap-2 md:gap-3">
+                            <button
+                              onClick={() => dec(item.sku_id, item.quantity)}
+                              disabled={item.quantity <= 1 || outOfStock}
+                              className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center rounded border border-slate-300 disabled:opacity-50"
+                              title="Decrease"
+                            >
+                              <Image
+                                src={assets.decrease_arrow}
+                                alt="-"
+                                className="h-4 w-4 md:h-5 md:w-5"
+                              />
+                            </button>
+
+                            <input
+                              type="number"
+                              min={1}
+                              max={
+                                Number.isFinite(item.availableQty)
+                                  ? item.availableQty
+                                  : undefined
+                              }
+                              value={item.quantity}
+                              onChange={(e) => {
+                                let val = parseInt(e.target.value, 10);
+                                if (isNaN(val) || val < 1) val = 1;
+                                setQty(item.sku_id, val);
+                              }}
+                              disabled={outOfStock}
+                              className="h-8 w-12 md:h-9 md:w-16 rounded border border-slate-300 text-center outline-none disabled:opacity-50"
+                            />
+
+                            <button
+                              onClick={() => inc(item.sku_id, item.quantity)}
+                              disabled={outOfStock || atCap}
+                              className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center rounded border border-slate-300 disabled:opacity-50"
+                              title={atCap ? "Max stock reached" : "Increase"}
+                            >
+                              <Image
+                                src={assets.increase_arrow}
+                                alt="+"
+                                className="h-4 w-4 md:h-5 md:w-5"
+                              />
+                            </button>
+
+                            <button
+                              className="ml-auto text-xs md:text-sm text-orange-600 hover:underline"
+                              onClick={() => remove(item.sku_id)}
+                            >
+                              Remove
+                            </button>
                           </div>
-                        </div>
 
-                        {/* qty controls */}
-                        <div className="mt-3 flex items-center gap-2 md:gap-3">
-                          <button
-                            onClick={() => dec(item.sku_id, item.quantity)}
-                            disabled={item.quantity <= 1}
-                            className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center rounded border border-slate-300"
-                            title="Decrease"
-                          >
-                            <Image
-                              src={assets.decrease_arrow}
-                              alt="-"
-                              className="h-4 w-4 md:h-5 md:w-5"
-                            />
-                          </button>
-
-                          <input
-                            type="number"
-                            min={1}
-                            value={item.quantity}
-                            onChange={(e) => {
-                              let val = parseInt(e.target.value, 10);
-                              if (isNaN(val) || val < 1) val = 1;
-                              setQty(item.sku_id, val);
-                            }}
-                            className="h-8 w-12 md:h-9 md:w-16 rounded border border-slate-300 text-center outline-none"
-                          />
-
-                          <button
-                            onClick={() => inc(item.sku_id, item.quantity)}
-                            className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center rounded border border-slate-300"
-                            title="Increase"
-                          >
-                            <Image
-                              src={assets.increase_arrow}
-                              alt="+"
-                              className="h-4 w-4 md:h-5 md:w-5"
-                            />
-                          </button>
-
-                          <button
-                            className="ml-auto text-xs md:text-sm text-orange-600 hover:underline"
-                            onClick={() => remove(item.sku_id)}
-                          >
-                            Remove
-                          </button>
+                          {/* cap hint */}
+                          {atCap && !outOfStock && (
+                            <p className="mt-1 text-[11px] text-gray-500">
+                              You'\''ve added the maximum available for this
+                              item.
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}

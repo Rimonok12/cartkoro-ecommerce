@@ -2,7 +2,7 @@ import { forwardCookies } from "@/lib/forwardCookies";
 
 export default async function handler(req, res) {
   try {
-    const url = `${process.env.NODE_HOST}/api/order/getSellerOrderItems`;
+    const url = `${process.env.NODE_HOST}/api/order/getAdminOrders`;
     const response = await fetch(url, {
       method: "GET",
       headers: {

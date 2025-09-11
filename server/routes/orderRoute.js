@@ -4,6 +4,7 @@ const {
   getUserOrders,
   createOrder,
   getSellerOrderItems,
+  getAdminOrders,
 } = require("../controllers/orderController");
 const { auth, allowRoles } = require("../middleware/auth");
 
@@ -15,5 +16,6 @@ router.get(
   allowRoles("seller"),
   getSellerOrderItems
 );
+router.get("/getAdminOrders", auth, allowRoles("admin"), getAdminOrders);
 
 module.exports = router;

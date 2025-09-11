@@ -86,3 +86,28 @@ export async function requireB2B(
   // Allowed: pass through all essentials props to the page
   return { props: { ...essentials.props } };
 }
+
+export async function requireB2BAdmin(
+  context,
+  { anyOf = ["is_admin", "is_super_admin"], redirectTo = "/" } = {}
+) {
+  // Get essentials (and implicitly ensure a valid refresh token)
+  const essentials = await essentialsOnLoad(context);
+
+  const profile = essentials?.props?.initialUserData || {};
+  // profile contains only role keys that are true — so we just test for presence
+  const allowed =
+    Array.isArray(anyOf) && anyOf.some((k) => Boolean(profile[k]));
+
+  if (!allowed) {
+    return {
+      redirect: {
+        destination: redirectTo,
+        permanent: false,
+      },
+    };
+  }
+
+  // Allowed: pass through all essentials props to the page
+  return { props: { ...essentials.props } };
+}

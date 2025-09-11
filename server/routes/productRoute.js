@@ -11,6 +11,7 @@ const {
   getAllProducts,
   getProductBySkuId,
   getAllProductsBySeller,
+  getHomeCategories,
 } = require("../controllers/productController");
 const {
   pendingProductsList,
@@ -47,5 +48,6 @@ router.get(
   allowRoles("seller"),
   getAllProductsBySeller
 );
+router.get("/getHomeCategories", getHomeCategories);
 
 module.exports = router;

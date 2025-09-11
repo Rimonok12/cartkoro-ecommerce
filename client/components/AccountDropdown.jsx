@@ -163,7 +163,7 @@ export default function AccountDropdown() {
             </Item>
 
             {isSuperAdmin && (
-              <Item href="/seller">
+              <Item href="/admin">
                 <svg
                   className="h-5 w-5 text-gray-500"
                   viewBox="0 0 24 24"
@@ -177,7 +177,7 @@ export default function AccountDropdown() {
             )}
 
             {isAdmin && (
-              <Item href="/seller">
+              <Item href="/admin">
                 <svg
                   className="h-5 w-5 text-gray-500"
                   viewBox="0 0 24 24"

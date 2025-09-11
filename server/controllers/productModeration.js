@@ -169,44 +169,38 @@ const upsertCategoryMargin = async (req, res) => {
     if (typeof mrpPercent === "number") set.mrp_percent = mrpPercent;
     if (typeof isActive === "boolean") set.is_active = isActive;
 
-    // Handle optional price band
     const hasMin = typeof priceMin !== "undefined";
     const hasMax = typeof priceMax !== "undefined";
-
     if (hasMin || hasMax) {
       const min = hasMin ? Math.max(0, Number(priceMin)) : undefined;
       const max = hasMax ? Math.max(0, Number(priceMax)) : undefined;
 
-      if (hasMin && Number.isNaN(min)) {
+      if (hasMin && Number.isNaN(min))
         return res.status(400).json({ message: "priceMin must be a number" });
-      }
-      if (hasMax && Number.isNaN(max)) {
+      if (hasMax && Number.isNaN(max))
         return res.status(400).json({ message: "priceMax must be a number" });
-      }
-      if (hasMin && hasMax && max < min) {
+      if (hasMin && hasMax && max < min)
         return res
           .status(400)
           .json({ message: "priceMax cannot be less than priceMin" });
-      }
 
       if (hasMin) set.price_min = min;
       if (hasMax) set.price_max = max;
     }
 
-    const update = {
-      $set: set,
-      // Defaults only when inserting a new doc
-      $setOnInsert: {
-        price_min: 0,
-        price_max: 500000,
-        is_active: true,
-      },
-    };
+    const update = {};
+    if (Object.keys(set).length) update.$set = set;
 
     const margin = await CategoryMargin.findOneAndUpdate(
       { category_id: categoryId },
       update,
-      { new: true, upsert: true, runValidators: true }
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true, // 👈 let schema defaults fill price_min/max/is_active on insert
+        context: "query", // good practice for min/max validators on update
+      }
     ).lean();
 
     return res.status(200).json({ message: "Margin upserted", data: margin });

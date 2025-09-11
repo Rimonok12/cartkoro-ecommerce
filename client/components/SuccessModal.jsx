@@ -10,7 +10,10 @@ const SuccessModal = ({ open, message, onOK }) => {
         <h2 className="text-lg font-semibold">Success</h2>
         <p className="text-sm text-gray-600 mt-1">{message}</p>
         <div className="mt-6 flex justify-end">
-          <button className="px-5 py-2 bg-orange-600 text-white rounded-lg" onClick={onOK}>
+          <button
+            className="px-5 py-2 bg-orange-600 text-white rounded-lg"
+            onClick={onOK}
+          >
             OK
           </button>
         </div>
