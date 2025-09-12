@@ -5,8 +5,10 @@ import { assets } from "@/assets/assets";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useAppContext } from "@/context/AppContext";
 
 const HeaderSlider = () => {
+  const {currency, userName}=useAppContext();
   const sliderData = [
     {
       id: 1,
@@ -16,11 +18,9 @@ const HeaderSlider = () => {
           Discounts!
         </>
       ),
-      offer: "Limited Time Offer 34% Off",
-      buttonText1: "Buy Now",
-      buttonText2: "Grab Your Deal",
-      buttonHref1: "https://ksrr4d-3000.csb.app/all-products",
-      buttonHref2: "https://ksrr4d-3000.csb.app/login?redirect=account/profile",
+      offer: "Limited Time Offer 70% Off",
+      buttonText1: "Explore Best Deal",
+      buttonHref1: "/all-products",
       imgSrc: "/f5.png",
       width: 1200,
       height: 800,
@@ -30,19 +30,17 @@ const HeaderSlider = () => {
       id: 2,
       title: (
         <>
-          Sign Up Today & Get{" "}
+          Sign Up Today & Get{"  "}
           <span className="text-green-600 font-bold">
-            50 Taka Instant Bonus!
+            {currency}50 Instant Bonus 🎉
           </span>
-          <br />
-          Unlock Exclusive Deals & Offers 🎉
         </>
       ),
       offer: "Limited Time — Don’t Miss Out!",
-      buttonText1: "Sign Up Now",
-      buttonText2: "Grab Your Bonus",
-      buttonHref1: "https://ksrr4d-3000.csb.app/login?redirect=account/profile",
-      buttonHref2: "https://ksrr4d-3000.csb.app/login?redirect=account/profile",
+      buttonText1: "Grab Your Bonus",
+     buttonHref1: userName
+        ? "/rewards"
+        : "/login?redirect=rewards",
       imgSrc: "/g1.png",
       width: 1200,
       height: 800,
@@ -56,11 +54,9 @@ const HeaderSlider = () => {
           Better ✨
         </>
       ),
-      offer: "Exclusive Mega Deal — Up to 40% Off!",
+      offer: "Exclusive Mega Deal — Up to 90% Off!",
       buttonText1: "Start Shopping",
-      buttonText2: "Discover More",
-      buttonHref1: "https://ksrr4d-3000.csb.app/login?redirect=account/profile",
-      buttonHref2: "https://ksrr4d-3000.csb.app/all-products",
+      buttonHref1: "/all-products",
       imgSrc: "/g2.png",
       width: 1200,
       height: 800,
@@ -73,7 +69,7 @@ const HeaderSlider = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % sliderData.length);
-    }, 3000); // 3 seconds
+    }, 4000); // 3 seconds
     return () => clearInterval(interval);
   }, [sliderData.length]);
 
@@ -179,23 +175,6 @@ const HeaderSlider = () => {
                   </motion.button>
                 </Link>
 
-                {/* Secondary CTA */}
-                <Link href={slide.buttonHref2} aria-label={slide.buttonText2}>
-                  <motion.button
-                    variants={ghostBtnVariant}
-                    initial="initial"
-                    whileHover="hover"
-                    whileTap="tap"
-                    className="group flex items-center gap-2 px-6 py-2.5 font-medium rounded-full border border-black/10 bg-white/60 backdrop-blur hover:shadow-md"
-                  >
-                    {slide.buttonText2}
-                    <Image
-                      className="group-hover:translate-x-1 transition"
-                      src={assets.arrow_icon}
-                      alt="arrow_icon"
-                    />
-                  </motion.button>
-                </Link>
               </div>
             </motion.div>
 

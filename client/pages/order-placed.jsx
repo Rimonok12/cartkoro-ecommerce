@@ -6,13 +6,9 @@ import { useEffect } from 'react'
 
 const OrderPlaced = () => {
 
-  const { router } = useAppContext()
+  const {  } = useAppContext()
 
-  useEffect(() => {
-    setTimeout(() => {
-      router.push('/my-orders')
-    }, 5000)
-  }, [])
+
 
   return (
     <div className='h-screen flex flex-col justify-center items-center gap-5'>
