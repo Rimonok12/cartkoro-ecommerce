@@ -551,6 +551,7 @@ const {
   hashExists,
   raw: redis,
 } = require("../config/redisClient");
+const { toIntlBD, sendSmsViaBulkSmsBD } = require("../utils/smsUtils.js");
 
 // ---------- helper: keep only roles that are true ----------
 const pickTrueRoles = (src = {}) => {
@@ -578,7 +579,21 @@ const generateOtp = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // TODO: send SMS here
+    // ---- Send SMS via bulksmsbd ----
+    const number = toIntlBD(phone);
+    const message = `${otp} is OTP to login to Cartkoro. Do not share with anyone. -from Cartkoro, Happy Shopping :)`;
+    try {
+      const smsResp = await sendSmsViaBulkSmsBD({
+        number,
+        message,
+      });
+    } catch (smsErr) {
+      console.error(
+        "Failed to send OTP SMS:",
+        smsErr?.response?.data || smsErr.message
+      );
+      return res.status(502).json({ error: "Failed to send OTP SMS" });
+    }
 
     res.status(200).json({ otp: otp, message: "OTP sent successfully" });
   } catch (err) {

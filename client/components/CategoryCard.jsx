@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useAppContext } from "@/context/AppContext";
 
 const CategoryCard = ({ category }) => {
@@ -8,7 +9,7 @@ const CategoryCard = ({ category }) => {
   return (
     <>
       {category.thumbnail_img && (
-        <a
+        <Link
           href={`/all-products?categoryId=${category._id}`}
           target="_blank"
           rel="noopener noreferrer"
@@ -31,7 +32,7 @@ const CategoryCard = ({ category }) => {
           <p className="mt-3 text-center text-base font-medium text-gray-800 truncate w-full">
             {category.name}
           </p>
-        </a>
+        </Link>
       )}
     </>
   );

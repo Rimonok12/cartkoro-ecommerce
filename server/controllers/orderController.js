@@ -3,10 +3,109 @@ const mongoose = require("mongoose");
 const { Order, OrderItem, OrderStatus } = require("../models/orderModels.js");
 const { Cashback, User, UserAddress } = require("../models/userModels");
 
-const { ProductSku } = require("../models/productModels");
+const { Product, ProductSku } = require("../models/productModels");
 
 const { setHash, getHash, delHash } = require("../config/redisClient");
 
+// const createOrder = async (req, res) => {
+//   const userId = req.user?.userId;
+//   if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+//   const { shipping_address_id, total_amount, items = [] } = req.body || {};
+//   if (!shipping_address_id)
+//     return res.status(400).json({ error: "shipping_address_id required" });
+//   if (!Array.isArray(items) || items.length === 0)
+//     return res.status(400).json({ error: "items required" });
+
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+//     const createdStatus = await OrderStatus.findOne({ status: "CREATED" })
+//       .session(session)
+//       .lean();
+//     if (!createdStatus?._id) throw new Error('OrderStatus "CREATED" not found');
+
+//     const skuIds = items.map((it) => it.sku_id);
+//     const skus = await ProductSku.find({ _id: { $in: skuIds } })
+//       .select("_id MRP SP")
+//       .session(session)
+//       .lean();
+//     const skuMap = new Map(skus.map((s) => [String(s._id), s]));
+
+//     const [order] = await Order.create(
+//       [
+//         {
+//           user_id: userId,
+//           shipping_address_id,
+//           total_amount: Number(total_amount) || 0,
+//         },
+//       ],
+//       { session }
+//     );
+
+//     const docs = items.map((it) => {
+//       const s = skuMap.get(String(it.sku_id));
+//       if (!s) throw new Error(`SKU not found: ${it.sku_id}`);
+//       const mrp = Number(s.MRP) || 0;
+//       let sp = Number(s.SP) || 0;
+//       if (sp > mrp) sp = mrp;
+
+//       return {
+//         order_id: order._id,
+//         sku_id: it.sku_id,
+//         quantity: Number(it.quantity) || 1,
+//         mrp_each: mrp,
+//         sp_each: sp,
+//         cashback_amount: Number(it.cashback_amount) || 0,
+//         delivery_amount: Number(it.delivery_amount) || 0,
+//         item_status_history: [{ status_code: createdStatus._id }],
+//       };
+//     });
+
+//     await OrderItem.insertMany(docs, { session });
+
+//     // stock decrement
+//     for (const it of items) {
+//       const qty = Number(it.quantity) || 1;
+//       const upd = await ProductSku.updateOne(
+//         {
+//           _id: it.sku_id,
+//           $expr: {
+//             $gte: [{ $subtract: ["$initial_stock", "$sold_stock"] }, qty],
+//           },
+//         },
+//         { $inc: { sold_stock: qty } },
+//         { session }
+//       );
+//       if (upd.modifiedCount !== 1)
+//         throw new Error(`Insufficient stock for SKU ${it.sku_id}`);
+//     }
+
+//     // (Optional) cashback updates ...
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     try {
+//       await delHash(`user:${userId}`, "cart");
+//     } catch {}
+
+//     return res.status(201).json({
+//       ok: true,
+//       order: {
+//         _id: order._id,
+//         total_amount: order.total_amount,
+//         shipping_address_id: order.shipping_address_id,
+//         createdAt: order.createdAt,
+//       },
+//     });
+//   } catch (err) {
+//     await session.abortTransaction().catch(() => {});
+//     session.endSession();
+//     console.error("createOrder error:", err);
+//     return res.status(400).json({ error: err.message || "Server error" });
+//   }
+// };
 const createOrder = async (req, res) => {
   const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -21,18 +120,21 @@ const createOrder = async (req, res) => {
   session.startTransaction();
 
   try {
+    // 1) Resolve CREATED status
     const createdStatus = await OrderStatus.findOne({ status: "CREATED" })
       .session(session)
       .lean();
     if (!createdStatus?._id) throw new Error('OrderStatus "CREATED" not found');
 
+    // 2) Load SKUs referenced by the order
     const skuIds = items.map((it) => it.sku_id);
     const skus = await ProductSku.find({ _id: { $in: skuIds } })
-      .select("_id MRP SP")
+      .select("_id MRP SP initial_stock sold_stock product_id status")
       .session(session)
       .lean();
     const skuMap = new Map(skus.map((s) => [String(s._id), s]));
 
+    // 3) Create Order
     const [order] = await Order.create(
       [
         {
@@ -44,6 +146,7 @@ const createOrder = async (req, res) => {
       { session }
     );
 
+    // 4) Create OrderItems (validating prices from SKUs)
     const docs = items.map((it) => {
       const s = skuMap.get(String(it.sku_id));
       if (!s) throw new Error(`SKU not found: ${it.sku_id}`);
@@ -65,7 +168,7 @@ const createOrder = async (req, res) => {
 
     await OrderItem.insertMany(docs, { session });
 
-    // stock decrement
+    // 5) Decrement stock with an atomic guard (available >= qty)
     for (const it of items) {
       const qty = Number(it.quantity) || 1;
       const upd = await ProductSku.updateOne(
@@ -82,10 +185,64 @@ const createOrder = async (req, res) => {
         throw new Error(`Insufficient stock for SKU ${it.sku_id}`);
     }
 
-    // (Optional) cashback updates ...
+    // 6) Mark SKUs that are now out of stock -> status = 0
+    await ProductSku.updateMany(
+      {
+        _id: { $in: skuIds },
+        $expr: { $gte: ["$sold_stock", "$initial_stock"] },
+      },
+      { $set: { status: 0 } },
+      { session }
+    );
+
+    // 7) For affected products, set product.status=0 if ALL of its SKUs are out of stock
+    //    (i.e., no variant has remaining stock > 0)
+    const productIds = await ProductSku.distinct("product_id", {
+      _id: { $in: skuIds },
+    }).session(session);
+
+    if (productIds.length) {
+      const perProductStock = await ProductSku.aggregate([
+        { $match: { product_id: { $in: productIds } } },
+        {
+          $project: {
+            product_id: 1,
+            remaining: { $subtract: ["$initial_stock", "$sold_stock"] },
+            // If you have permanently disabled variants you want to ignore in availability,
+            // uncomment the line below and add it to $match:
+            // status: 1
+          },
+        },
+        {
+          $group: {
+            _id: "$product_id",
+            anyInStock: {
+              $max: { $cond: [{ $gt: ["$remaining", 0] }, 1, 0] },
+            },
+          },
+        },
+      ]).session(session);
+
+      // Only set to 0 when no variants have stock; do NOT set to 1 here.
+      const productsAllOut = perProductStock
+        .filter((p) => p.anyInStock === 0)
+        .map((p) => p._id);
+
+      if (productsAllOut.length) {
+        await Product.updateMany(
+          { _id: { $in: productsAllOut } },
+          { $set: { status: 0 } },
+          { session }
+        );
+      }
+    }
+
+    // (Optional) cashback updates...
+
     await session.commitTransaction();
     session.endSession();
 
+    // 8) best-effort cart invalidation (outside transaction)
     try {
       await delHash(`user:${userId}`, "cart");
     } catch {}

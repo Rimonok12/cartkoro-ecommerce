@@ -675,6 +675,7 @@ export default function Cart() {
                         {/* 👉 Image links to product */}
                         <Link
                           href={item.url}
+                          target="_blank"
                           className="shrink-0 rounded-lg overflow-hidden bg-slate-100 p-2"
                           title="View product"
                         >
@@ -695,6 +696,7 @@ export default function Cart() {
                           {/* 👉 Name links to product, clamped to 2 lines with ellipsis */}
                           <Link
                             href={item.url}
+                            target="_blank"
                             className="block font-medium text-slate-900 md:text-base hover:underline break-words"
                             title={item.name}
                             style={{
@@ -801,8 +803,8 @@ export default function Cart() {
                           {/* cap hint */}
                           {atCap && !outOfStock && (
                             <p className="mt-1 text-[11px] text-gray-500">
-                              You'\''ve added the maximum available for this
-                              item.
+                              {`You have've added the maximum available for this
+                              item.`}
                             </p>
                           )}
                         </div>
