@@ -11,6 +11,8 @@ const userRoute = require("./routes/userRoute");
 const productRoute = require("./routes/productRoute");
 const orderRoute = require("./routes/orderRoute");
 const generalRoute = require("./routes/generalRoute");
+const copyDistrictsAndUpazilas = require("./utils/copyDistrictsUpazilas");
+
 
 const app = express();
 
@@ -48,7 +50,21 @@ app.get("/", (req, res) => res.send("🚀 Portfolio API is running"));
 const PORT = process.env.PORT || 8000;
 const configIdentity = process.env.CONFIG_IDENTITY;
 
-app.listen(PORT, () => {
+// app.listen(PORT, () => {
+//   console.log(`config identity is ${configIdentity}`);
+//   console.log(`Server started on port ${PORT}`);
+// });
+
+
+
+app.listen(PORT, async () => {
   console.log(`config identity is ${configIdentity}`);
-  console.log(`Server started on port ${PORT}`);
+  console.log(`🚀 Server started on port ${PORT}`);
+
+  try {
+    await copyDistrictsAndUpazilas();
+    console.log("🎉 Data copied successfully");
+  } catch (err) {
+    console.error("❌ Copy failed:", err.message);
+  }
 });
