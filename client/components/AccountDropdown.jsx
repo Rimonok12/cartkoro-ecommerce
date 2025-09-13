@@ -64,8 +64,9 @@ export default function AccountDropdown() {
         onClick={handleButton}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={userName ? `Account for ${userName}` : "Login"}
         className="flex items-center gap-2 rounded-xl px-3 py-2 border border-gray-200
-                   hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                  hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
       >
         <svg
           className="h-5 w-5 text-gray-700"
@@ -76,14 +77,15 @@ export default function AccountDropdown() {
           <circle cx="12" cy="8" r="3.5" />
           <path d="M5 19c1.8-3 5.2-3 7-3s5.2 0 7 3" />
         </svg>
-        <span className="text-sm">
+
+        {/* Hide label on mobile, show from sm+; also truncate long names */}
+        <span className="text-sm hidden sm:inline max-w-[9rem] truncate">
           {userName ? `Hi, ${userName}` : "Login"}
         </span>
+
         {userName && (
           <svg
-            className={`h-4 w-4 text-gray-700 transition-transform ${
-              open ? "rotate-180" : ""
-            }`}
+            className={`h-4 w-4 text-gray-700 transition-transform ${open ? "rotate-180" : ""}`}
             viewBox="0 0 20 20"
             fill="currentColor"
             aria-hidden="true"
@@ -92,6 +94,7 @@ export default function AccountDropdown() {
           </svg>
         )}
       </button>
+
 
       {userName && open && (
         <div
