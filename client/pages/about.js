@@ -1,7 +1,16 @@
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
+import { essentialsOnLoad } from "@/lib/ssrHelper";
 
+export async function getServerSideProps(context) {
+  const essentials = await essentialsOnLoad(context);
+  return {
+    props: {
+      ...essentials.props,
+    },
+  };
+}
 export default function AboutPage() {
   return (
     <>

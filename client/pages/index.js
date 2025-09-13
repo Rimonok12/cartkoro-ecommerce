@@ -13,14 +13,20 @@ import { useAppContext } from "@/context/AppContext";
 
 export async function getServerSideProps(context) {
   const essentials = await essentialsOnLoad(context);
+  const EMAILJS_SERVICE_ID=process.env.EMAILJS_SERVICE_ID;
+  const EMAILJS_TEMPLATE_ID=process.env.EMAILJS_TEMPLATE_ID;
+  const EMAILJS_PUBLIC_KEY=process.env.EMAILJS_PUBLIC_KEY;
   return {
     props: {
+      EMAILJS_SERVICE_ID,
+      EMAILJS_TEMPLATE_ID,
+      EMAILJS_PUBLIC_KEY,
       ...essentials.props,
     },
   };
 }
 
-const Home = () => {
+const Home = ({EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,EMAILJS_PUBLIC_KEY}) => {
   const {userName}=useAppContext();
   return (
     <>
@@ -30,7 +36,11 @@ const Home = () => {
         <HomeCategories />
         {/* <FeaturedProduct /> */}
         {/* <Banner /> */}
-        <NewsLetter />
+        <NewsLetter 
+          EMAILJS_SERVICE_ID={EMAILJS_SERVICE_ID}
+          EMAILJS_TEMPLATE_ID={EMAILJS_TEMPLATE_ID}
+          EMAILJS_PUBLIC_KEY={EMAILJS_PUBLIC_KEY}
+        />
       </div>
       <Footer />
     </>

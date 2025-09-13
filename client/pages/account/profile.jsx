@@ -1,5 +1,6 @@
 // pages/account/profile.jsx
 'use client';
+
 import { useEffect, useMemo, useState } from 'react';
 import api from '@/lib/axios';
 import { essentialsOnLoad } from '@/lib/ssrHelper';
@@ -19,27 +20,35 @@ export async function getServerSideProps(context) {
   return { props: { ...essentials.props } };
 }
 
-/** ✅ Success modal (same vibe as your ConfirmModal) */
+/** ✅ Success modal (lighter, animated, accessible) */
 const SuccessModal = ({ open, title = 'Saved!', description = 'Your profile was updated successfully.', onClose }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative z-10 w-[90%] max-w-md rounded-2xl bg-white p-6 shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="success-title"
+      aria-describedby="success-desc"
+    >
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative z-10 w-[92%] max-w-md rounded-2xl bg-white/95 shadow-2xl ring-1 ring-black/5 p-6
+                      data-[show=true]:animate-in data-[show=true]:fade-in-0 data-[show=true]:zoom-in-95"
+           data-show="true">
         <div className="flex items-start gap-3">
-          <div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center">
+          <div className="h-9 w-9 rounded-full bg-green-50 ring-1 ring-green-200/60 flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-700" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.414l2.293 2.293 6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" />
             </svg>
           </div>
           <div>
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <p className="text-sm text-gray-600 mt-1">{description}</p>
+            <h2 id="success-title" className="text-lg font-semibold">{title}</h2>
+            <p id="success-desc" className="text-sm text-gray-600 mt-1">{description}</p>
           </div>
         </div>
         <div className="mt-6 flex justify-end">
           <button
-            className="px-5 py-2 rounded-lg bg-orange-600 text-white hover:bg-orange-700"
+            className="px-5 py-2 rounded-xl bg-orange-600 text-white shadow-sm hover:shadow-md hover:bg-orange-700 active:scale-[0.99] transition"
             onClick={onClose}
           >
             Done
@@ -76,7 +85,6 @@ export default function ProfilePage() {
       setLoading(true);
       setMsg('');
       setErr('');
-      // Your controller responds with { full_name, phone, email }
       const res = await api.post('/user/getProfileData', {}, { withCredentials: true });
       const p = res?.data || {};
       const next = {
@@ -130,7 +138,6 @@ export default function ProfilePage() {
   };
 
   const saveProfile = async () => {
-    // FE checks only; BE remains source of truth
     const nameStr = String(form.full_name || '').trim();
     const emailStr = String(form.email || '').trim().toLowerCase();
 
@@ -158,7 +165,7 @@ export default function ProfilePage() {
         email: emailStr,
       };
 
-      const updatedResponse=await api.put('/user/updateProfileData', payload, { withCredentials: true });
+      const updatedResponse = await api.put('/user/updateProfileData', payload, { withCredentials: true });
 
       // Optimistic sync (phone unchanged)
       const updated = { ...profile, full_name: nameStr, email: emailStr };
@@ -167,11 +174,11 @@ export default function ProfilePage() {
       setEditing(false);
 
       // Show modal + inline message
-      setMsg(updatedResponse.message||'Profile updated successfully....');
+      setMsg(updatedResponse?.data?.message || 'Profile updated successfully.');
       setShowSuccess(true);
     } catch (e) {
       console.error('Error updating profile', e);
-      setErr('Failed to update profile.');
+      setErr(e?.response?.data?.error || 'Failed to update profile.');
     } finally {
       setSaving(false);
     }
@@ -183,14 +190,14 @@ export default function ProfilePage() {
 
       <div className="px-4 md:px-10 lg:px-16 py-8 flex items-center justify-between max-w-6xl mx-auto">
         <div>
-          <p className="text-2xl md:text-3xl text-gray-600">
+          <p className="text-2xl md:text-3xl text-gray-700">
             Manage <span className="font-semibold text-orange-600">Profile</span>
           </p>
         </div>
         {!editing ? (
           <button
             onClick={startEdit}
-            className="hidden sm:inline-flex bg-orange-600 text-white px-5 py-3 rounded hover:bg-orange-700 disabled:opacity-60"
+            className="hidden sm:inline-flex bg-orange-600 text-white px-5 py-3 rounded-xl shadow-sm hover:shadow-md hover:bg-orange-700 active:scale-[0.99] transition disabled:opacity-60"
             disabled={loading}
           >
             Edit Profile
@@ -200,15 +207,14 @@ export default function ProfilePage() {
             <button
               onClick={saveProfile}
               disabled={saving || !isValid || !isDirty}
-              className={`bg-orange-600 text-white px-5 py-3 rounded ${
-                (saving || !isValid || !isDirty) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-orange-700'
-              }`}
+              className={`rounded-xl px-5 py-3 text-white shadow-sm transition active:scale-[0.99]
+                ${saving || !isValid || !isDirty ? 'bg-orange-600/60 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 hover:shadow-md'}`}
             >
               {saving ? 'Saving…' : 'Save Changes'}
             </button>
             <button
               onClick={cancelEdit}
-              className="px-5 py-3 rounded border"
+              className="px-5 py-3 rounded-xl ring-1 ring-black/10 hover:bg-gray-50 transition"
               disabled={saving}
             >
               Cancel
@@ -218,124 +224,147 @@ export default function ProfilePage() {
       </div>
 
       <div className="px-4 md:px-10 lg:px-16 pb-20">
-        <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border p-6">
-          {loading ? (
-            <p>Loading…</p>
-          ) : (
-            <>
-              {/* Header / avatar-ish row */}
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-semibold">
-                  {String(profile.full_name || 'U').trim().charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold">Profile Information</h2>
-                </div>
+        <div className="max-w-3xl mx-auto rounded-2xl bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80
+                        shadow-lg ring-1 ring-black/5">
+          <div className="p-6">
+            {loading ? (
+              <div className="animate-pulse space-y-4">
+                <div className="h-5 w-40 rounded bg-gray-200" />
+                <div className="h-10 w-full rounded bg-gray-200" />
+                <div className="h-10 w-3/4 rounded bg-gray-200" />
+                <div className="h-10 w-2/3 rounded bg-gray-200" />
               </div>
+            ) : (
+              <>
+                {/* Header / avatar-ish row */}
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-orange-50 ring-1 ring-orange-200/70 flex items-center justify-center text-orange-700 font-semibold">
+                    {String(profile.full_name || 'U').trim().charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold">Profile Information</h2>
+                    <p className="text-xs text-gray-500">Your account basics</p>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6">
-                {/* Full Name */}
-                {!editing ? (
-                  <div className="md:col-span-1">
-                    <p className="text-sm text-gray-500">Full name</p>
-                    <p className="text-gray-800 font-medium">{profile.full_name || '—'}</p>
-                  </div>
-                ) : (
-                  <div className="md:col-span-1">
-                    <label className="text-sm text-gray-600">Full name</label>
-                    <input
-                      required
-                      aria-invalid={!String(form.full_name || '').trim() ? 'true' : 'false'}
-                      className="mt-1 px-2 py-2.5 border border-gray-300 rounded outline-none w-full text-gray-800"
-                      type="text"
-                      placeholder="Full name"
-                      value={form.full_name}
-                      onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                    />
-                  </div>
-                )}
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Full Name */}
+                  {!editing ? (
+                    <div className="md:col-span-1">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Full name</p>
+                      <p className="text-gray-900 font-medium">{profile.full_name || '—'}</p>
+                    </div>
+                  ) : (
+                    <div className="md:col-span-1">
+                      <label className="text-xs uppercase tracking-wide text-gray-500">Full name</label>
+                      <input
+                        required
+                        aria-invalid={!String(form.full_name || '').trim() ? 'true' : 'false'}
+                        className="mt-1 px-3 py-2.5 rounded-xl w-full text-gray-900 bg-white shadow-inner
+                                   ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition"
+                        type="text"
+                        placeholder="Full name"
+                        value={form.full_name}
+                        onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                      />
+                    </div>
+                  )}
 
-                {/* Phone (Read-only always) */}
-                {!editing ? (
-                  <div className="md:col-span-1">
-                    <p className="text-sm text-gray-500">Phone</p>
-                    <p className="text-gray-800 font-medium">{profile.phone || '—'}</p>
-                  </div>
-                ) : (
-                  <div className="md:col-span-1">
-                    <label className="text-sm text-gray-600">Phone (read-only)</label>
-                    <input
-                      className="mt-1 px-2 py-2.5 border border-gray-300 rounded outline-none w-full text-gray-800 bg-gray-100 text-gray-600 cursor-not-allowed"
-                      type="text"
-                      placeholder="Phone"
-                      value={form.phone}
-                      onChange={() => {}}
-                      readOnly
-                      disabled
-                    />
-                  </div>
-                )}
+                  {/* Phone (Read-only always) */}
+                  {!editing ? (
+                    <div className="md:col-span-1">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Phone</p>
+                      <p className="text-gray-900 font-medium">{profile.phone || '—'}</p>
+                    </div>
+                  ) : (
+                    <div className="md:col-span-1">
+                      <label className="text-xs uppercase tracking-wide text-gray-500">Phone (read-only)</label>
+                      <input
+                        className="mt-1 px-3 py-2.5 rounded-xl w-full text-gray-700 bg-gray-50 shadow-inner
+                                   ring-1 ring-inset ring-gray-200 cursor-not-allowed"
+                        type="text"
+                        placeholder="Phone"
+                        value={form.phone}
+                        onChange={() => {}}
+                        readOnly
+                        disabled
+                      />
+                    </div>
+                  )}
 
-                {/* Email */}
-                {!editing ? (
-                  <div className="md:col-span-2">
-                    <p className="text-sm text-gray-500">Email</p>
-                    <p className="text-gray-800 font-medium break-all">{profile.email || '—'}</p>
-                  </div>
-                ) : (
-                  <div className="md:col-span-2">
-                    <label className="text-sm text-gray-600">Email</label>
-                    <input
-                      required
-                      aria-invalid={!emailRegex.test(String(form.email || '').trim()) ? 'true' : 'false'}
-                      className="mt-1 px-2 py-2.5 border border-gray-300 rounded outline-none w-full text-gray-800"
-                      type="email"
-                      placeholder="Email"
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                  </div>
-                )}
-              </div>
+                  {/* Email */}
+                  {!editing ? (
+                    <div className="md:col-span-2">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Email</p>
+                      <p className="text-gray-900 font-medium break-all">{profile.email || '—'}</p>
+                    </div>
+                  ) : (
+                    <div className="md:col-span-2">
+                      <label className="text-xs uppercase tracking-wide text-gray-500">Email</label>
+                      <input
+                        required
+                        aria-invalid={!emailRegex.test(String(form.email || '').trim()) ? 'true' : 'false'}
+                        className="mt-1 px-3 py-2.5 rounded-xl w-full text-gray-900 bg-white shadow-inner
+                                   ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition"
+                        type="email"
+                        placeholder="Email"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </div>
 
-              {/* Mobile action buttons */}
-              <div className="mt-6 flex flex-col sm:hidden gap-3">
-                {!editing ? (
-                  <button
-                    onClick={startEdit}
-                    className="w-full bg-orange-600 text-white px-5 py-3 rounded hover:bg-orange-700"
-                  >
-                    Edit Profile
-                  </button>
-                ) : (
-                  <>
+                {/* Mobile action buttons */}
+                <div className="mt-6 flex flex-col sm:hidden gap-3">
+                  {!editing ? (
                     <button
-                      onClick={saveProfile}
-                      disabled={saving || !isValid || !isDirty}
-                      className={`w-full bg-orange-600 text-white px-5 py-3 rounded ${
-                        (saving || !isValid || !isDirty) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-orange-700'
-                      }`}
+                      onClick={startEdit}
+                      className="w-full bg-orange-600 text-white px-5 py-3 rounded-xl shadow-sm hover:shadow-md hover:bg-orange-700 active:scale-[0.99] transition"
                     >
-                      {saving ? 'Saving…' : 'Save Changes'}
+                      Edit Profile
                     </button>
-                    <button
-                      onClick={cancelEdit}
-                      className="w-full py-3 border rounded"
-                      disabled={saving}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {(msg || err) && (
-                <div className="mt-4">
-                  {err && <p className="text-red-600">{err}</p>}
+                  ) : (
+                    <>
+                      <button
+                        onClick={saveProfile}
+                        disabled={saving || !isValid || !isDirty}
+                        className={`w-full rounded-xl px-5 py-3 text-white shadow-sm transition active:scale-[0.99]
+                          ${saving || !isValid || !isDirty ? 'bg-orange-600/60 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 hover:shadow-md'}`}
+                      >
+                        {saving ? 'Saving…' : 'Save Changes'}
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        className="w-full py-3 rounded-xl ring-1 ring-black/10 hover:bg-gray-50 transition"
+                        disabled={saving}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
                 </div>
-              )}
-            </>
-          )}
+
+                {/* Inline alerts */}
+                {(msg || err) && (
+                  <div className="mt-5">
+                    {err ? (
+                      <div className="rounded-xl bg-red-50 text-red-700 text-sm px-3 py-2 ring-1 ring-red-200/70">
+                        {err}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl bg-green-50 text-green-700 text-sm px-3 py-2 ring-1 ring-green-200/70">
+                        {msg}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* soft divider footer zone for spacing */}
+          <div className="h-3 rounded-b-2xl bg-gradient-to-b from-transparent to-gray-50/60" />
         </div>
       </div>
 
