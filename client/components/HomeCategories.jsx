@@ -1,85 +1,6 @@
-// import React, { useEffect, useState } from "react";
-// import CategoryCard from "./CategoryCard";
-// import { useAppContext } from "@/context/AppContext";
-// import { useRouter } from "next/router";
-// import { motion } from "framer-motion";
-
-// const HomeCategories = () => {
-//   const router = useRouter();
-//   const [categories, setCategories] = useState([]);
-
-//   useEffect(() => {
-//     const fetchCategories = async () => {
-//       try {
-//         const res = await fetch(`/api/product/getHomeCategories`);
-//         const data = await res.json();
-//         setCategories(data);
-//       } catch (err) {
-//         console.error("Failed to fetch products", err);
-//       }
-//     };
-//     fetchCategories();
-//   }, []);
-
-//   const container = {
-//     hidden: { opacity: 0 },
-//     show: {
-//       opacity: 1,
-//       transition: { staggerChildren: 0.07, delayChildren: 0.05 },
-//     },
-//   };
-//   const item = {
-//     hidden: { opacity: 0, y: 18, scale: 0.98 },
-//     show: {
-//       opacity: 1,
-//       y: 0,
-//       scale: 1,
-//       transition: { type: "spring", stiffness: 260, damping: 20 },
-//     },
-//   };
-
-//   return (
-//     <div className="flex flex-col items-center pt-14">
-//       <p className="text-2xl font-medium text-left w-full">
-//         Popular Categories
-//       </p>
-
-//       <motion.div
-//         variants={container}
-//         initial="hidden"
-//         animate="show"
-//         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 flex-col items-center gap-6 mt-6 pb-14 w-full"
-//       >
-//         {categories?.map((category, index) => (
-//           <motion.div
-//             key={index}
-//             variants={item}
-//             whileHover={{ y: -4, scale: 1.02 }}
-//             whileTap={{ scale: 0.98 }}
-//           >
-//             <CategoryCard category={category} />
-//           </motion.div>
-//         ))}
-//       </motion.div>
-
-//       {/* <motion.button
-//         whileHover={{ scale: 1.03 }}
-//         whileTap={{ scale: 0.97 }}
-//         onClick={() => router.push("/all-products")}
-//         className="px-12 py-2.5 border rounded text-gray-500/70 hover:bg-slate-50/90 transition"
-//       >
-//         See more
-//       </motion.button> */}
-//     </div>
-//   );
-// };
-
-// export default HomeCategories;
-
 import React, { useEffect, useState } from "react";
 import CategoryCard from "./CategoryCard";
 import { useRouter } from "next/router";
-import { motion } from "framer-motion";
 
 const HomeCategories = () => {
   const router = useRouter();
@@ -98,54 +19,32 @@ const HomeCategories = () => {
     fetchCategories();
   }, []);
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.07, delayChildren: 0.05 },
-    },
-  };
-  const item = {
-    hidden: { opacity: 0, y: 18, scale: 0.98 },
-    show: {
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      transition: { type: "spring", stiffness: 260, damping: 20 },
-    },
-  };
-
   return (
-    <div className="flex flex-col items-center pt-14 w-full">
+    <div className="w-full pt-14">
       {/* page padding stays even on both sides */}
-      <div className="w-full px-4 sm:px-6">
-        <p className="text-2xl font-medium w-full text-center sm:text-left">
-          Popular Categories
-        </p>
+      <div className="mx-auto w-full max-w-screen-2xl px-4 sm:px-6 lg:px-8">
+      <h1 className="md:text-4xl text-2xl font-medium text-center text-orange-600 ">
+        Popular Categories
+      </h1>
 
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          /* center the grid; 1 col on mobile; keep growing on larger screens */
-          className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 mt-6 pl-14 pt-14 pr-14 justify-items-center"
-        >
+        {/* FLEX version, premium spacing & clear separation */}
+        <div className="mt-8 flex flex-wrap justify-center gap-6 sm:gap-8">
           {categories?.map((category, index) => (
-            <motion.div
+            <div
               key={index}
-              variants={item}
-              whileHover={{ y: -4, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              /* make each card a bit bigger & centered */
-              className="w-full max-w-[420px] sm:max-w-[460px] h-full"
+              className="flex-shrink-0 w-full pl-12 sm:w-[48%] md:w-[31%] lg:w-[23%] xl:w-[18%] max-w-sm"
             >
               <CategoryCard category={category} />
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
       </div>
     </div>
   );
 };
 
 export default HomeCategories;
+
+
+
+

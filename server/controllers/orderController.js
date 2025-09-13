@@ -7,105 +7,19 @@ const { Product, ProductSku } = require("../models/productModels");
 
 const { setHash, getHash, delHash } = require("../config/redisClient");
 
-// const createOrder = async (req, res) => {
-//   const userId = req.user?.userId;
-//   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-//   const { shipping_address_id, total_amount, items = [] } = req.body || {};
-//   if (!shipping_address_id)
-//     return res.status(400).json({ error: "shipping_address_id required" });
-//   if (!Array.isArray(items) || items.length === 0)
-//     return res.status(400).json({ error: "items required" });
+const getOrderStatuses = async (req, res) => {
+  try {
+    const statuses = await OrderStatus.find({})
+      .select("_id status status_desc")
+      .sort({ status: 1 })
+      .lean();
+    return res.json({ ok: true, statuses });
+  } catch (e) {
+    return res.status(500).json({ error: e });
+  }
+};
 
-//   const session = await mongoose.startSession();
-//   session.startTransaction();
-
-//   try {
-//     const createdStatus = await OrderStatus.findOne({ status: "CREATED" })
-//       .session(session)
-//       .lean();
-//     if (!createdStatus?._id) throw new Error('OrderStatus "CREATED" not found');
-
-//     const skuIds = items.map((it) => it.sku_id);
-//     const skus = await ProductSku.find({ _id: { $in: skuIds } })
-//       .select("_id MRP SP")
-//       .session(session)
-//       .lean();
-//     const skuMap = new Map(skus.map((s) => [String(s._id), s]));
-
-//     const [order] = await Order.create(
-//       [
-//         {
-//           user_id: userId,
-//           shipping_address_id,
-//           total_amount: Number(total_amount) || 0,
-//         },
-//       ],
-//       { session }
-//     );
-
-//     const docs = items.map((it) => {
-//       const s = skuMap.get(String(it.sku_id));
-//       if (!s) throw new Error(`SKU not found: ${it.sku_id}`);
-//       const mrp = Number(s.MRP) || 0;
-//       let sp = Number(s.SP) || 0;
-//       if (sp > mrp) sp = mrp;
-
-//       return {
-//         order_id: order._id,
-//         sku_id: it.sku_id,
-//         quantity: Number(it.quantity) || 1,
-//         mrp_each: mrp,
-//         sp_each: sp,
-//         cashback_amount: Number(it.cashback_amount) || 0,
-//         delivery_amount: Number(it.delivery_amount) || 0,
-//         item_status_history: [{ status_code: createdStatus._id }],
-//       };
-//     });
-
-//     await OrderItem.insertMany(docs, { session });
-
-//     // stock decrement
-//     for (const it of items) {
-//       const qty = Number(it.quantity) || 1;
-//       const upd = await ProductSku.updateOne(
-//         {
-//           _id: it.sku_id,
-//           $expr: {
-//             $gte: [{ $subtract: ["$initial_stock", "$sold_stock"] }, qty],
-//           },
-//         },
-//         { $inc: { sold_stock: qty } },
-//         { session }
-//       );
-//       if (upd.modifiedCount !== 1)
-//         throw new Error(`Insufficient stock for SKU ${it.sku_id}`);
-//     }
-
-//     // (Optional) cashback updates ...
-//     await session.commitTransaction();
-//     session.endSession();
-
-//     try {
-//       await delHash(`user:${userId}`, "cart");
-//     } catch {}
-
-//     return res.status(201).json({
-//       ok: true,
-//       order: {
-//         _id: order._id,
-//         total_amount: order.total_amount,
-//         shipping_address_id: order.shipping_address_id,
-//         createdAt: order.createdAt,
-//       },
-//     });
-//   } catch (err) {
-//     await session.abortTransaction().catch(() => {});
-//     session.endSession();
-//     console.error("createOrder error:", err);
-//     return res.status(400).json({ error: err.message || "Server error" });
-//   }
-// };
 const createOrder = async (req, res) => {
   const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -308,272 +222,6 @@ const getUserOrders = async (req, res) => {
   }
 };
 
-// GET /order/getSellerOrderItems?limit=20&skip=0
-// const getSellerOrderItems = async (req, res) => {
-//   const sellerId = req.user?.userId;
-//   if (!sellerId) return res.status(401).json({ error: "Unauthorized" });
-
-//   const limit = Math.min(parseInt(req.query.limit || "20", 10), 100);
-//   const skip = parseInt(req.query.skip || "0", 10);
-
-//   try {
-//     const objectId = new mongoose.Types.ObjectId(sellerId);
-
-//     const pipeline = [
-//       // SKU join
-//       {
-//         $lookup: {
-//           from: "productskus",
-//           localField: "sku_id",
-//           foreignField: "_id",
-//           as: "sku",
-//         },
-//       },
-//       { $unwind: "$sku" },
-
-//       // Product (ownership + name/brand/category)
-//       {
-//         $lookup: {
-//           from: "products",
-//           localField: "sku.product_id",
-//           foreignField: "_id",
-//           as: "product",
-//         },
-//       },
-//       { $unwind: "$product" },
-
-//       // Only seller's items
-//       { $match: { "product.userId": objectId } },
-
-//       // Brand (optional if brand name is denormalized on product)
-//       {
-//         $lookup: {
-//           from: "brands",
-//           localField: "product.brandId",
-//           foreignField: "_id",
-//           as: "brand",
-//         },
-//       },
-//       { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
-
-//       // Status codes join to resolve item_status_history
-//       {
-//         $lookup: {
-//           from: "orderstatuses",
-//           localField: "item_status_history.status_code",
-//           foreignField: "_id",
-//           as: "statusDocs",
-//         },
-//       },
-
-//       // Resolve status history for THIS order item
-//       {
-//         $addFields: {
-//           resolved_status_history: {
-//             $map: {
-//               input: { $ifNull: ["$item_status_history", []] },
-//               as: "ish",
-//               in: {
-//                 note: "$$ish.note",
-//                 at: "$$ish.at",
-//                 status: {
-//                   $let: {
-//                     vars: {
-//                       match: {
-//                         $first: {
-//                           $filter: {
-//                             input: "$statusDocs",
-//                             as: "sd",
-//                             cond: { $eq: ["$$sd._id", "$$ish.status_code"] },
-//                           },
-//                         },
-//                       },
-//                     },
-//                     in: {
-//                       code: "$$match._id",
-//                       status: "$$match.status",
-//                       status_desc: "$$match.status_desc",
-//                     },
-//                   },
-//                 },
-//               },
-//             },
-//           },
-//         },
-//       },
-
-//       // Compute the latest status entry within this item's history
-//       {
-//         $addFields: {
-//           last_status_entry: {
-//             $reduce: {
-//               input: { $ifNull: ["$resolved_status_history", []] },
-//               initialValue: null,
-//               in: {
-//                 $cond: [
-//                   {
-//                     $or: [
-//                       { $eq: ["$$value", null] },
-//                       { $gt: ["$$this.at", "$$value.at"] },
-//                     ],
-//                   },
-//                   "$$this",
-//                   "$$value",
-//                 ],
-//               },
-//             },
-//           },
-//         },
-//       },
-
-//       // 🔎 Load Variant definitions for this product's category
-//       {
-//         $lookup: {
-//           from: "variants",
-//           let: { catId: "$product.category_id" },
-//           pipeline: [
-//             { $match: { $expr: { $eq: ["$category_id", "$$catId"] } } },
-//             { $project: { _id: 1, name: 1, values: 1 } },
-//           ],
-//           as: "variants",
-//         },
-//       },
-
-//       // 🧩 Resolve sku.variant_values keys -> variant names (handles IDs or names)
-//       {
-//         $addFields: {
-//           variant_pairs: {
-//             $objectToArray: { $ifNull: ["$sku.variant_values", {}] },
-//           },
-//         },
-//       },
-//       {
-//         $addFields: {
-//           resolved_variant_entries: {
-//             $map: {
-//               input: "$variant_pairs",
-//               as: "vp",
-//               in: {
-//                 $let: {
-//                   vars: {
-//                     looksLikeId: {
-//                       $regexMatch: {
-//                         input: "$$vp.k",
-//                         // 24 hex chars → looks like ObjectId
-//                         regex: /^[a-fA-F0-9]{24}$/,
-//                       },
-//                     },
-//                     byId: {
-//                       $first: {
-//                         $filter: {
-//                           input: "$variants",
-//                           as: "vr",
-//                           cond: {
-//                             $eq: ["$$vr._id", { $toObjectId: "$$vp.k" }],
-//                           },
-//                         },
-//                       },
-//                     },
-//                     byName: {
-//                       $first: {
-//                         $filter: {
-//                           input: "$variants",
-//                           as: "vr",
-//                           cond: { $eq: ["$$vr.name", "$$vp.k"] },
-//                         },
-//                       },
-//                     },
-//                   },
-//                   in: {
-//                     k: {
-//                       $ifNull: [
-//                         { $cond: ["$$looksLikeId", "$$byId.name", null] },
-//                         "$$byName.name",
-//                         "$$vp.k", // fallback
-//                       ],
-//                     },
-//                     v: "$$vp.v", // value is kept as-is (already a string per schema)
-//                   },
-//                 },
-//               },
-//             },
-//           },
-//         },
-//       },
-//       {
-//         $addFields: {
-//           variant_name_values: { $arrayToObject: "$resolved_variant_entries" },
-//         },
-//       },
-
-//       // Sort items so $first in the group is the latest per SKU
-//       { $sort: { createdAt: -1 } },
-
-//       // Group by SKU (roll-up per item)
-//       {
-//         $group: {
-//           _id: "$sku._id",
-
-//           // product & sku meta
-//           productId: { $first: "$product._id" },
-//           productName: { $first: "$product.name" },
-//           brandId: { $first: "$product.brandId" },
-//           brand: { $first: "$brand" },
-//           variantValues: { $first: "$variant_name_values" },
-//           thumbnailImg: { $first: "$sku.thumbnail_img" },
-
-//           // aggregates
-//           totalSold: { $sum: "$quantity" },
-//           totalRevenue: { $sum: { $multiply: ["$sp_each", "$quantity"] } },
-//           lastItemCreatedAt: { $max: "$createdAt" },
-
-//           // latest order's status info (for this SKU)
-//           latestResolvedStatusHistory: { $first: "$resolved_status_history" },
-//           latestLastStatusEntry: { $first: "$last_status_entry" },
-//         },
-//       },
-
-//       // Sort by most sold and recency
-//       { $sort: { totalSold: -1, lastItemCreatedAt: -1 } },
-
-//       // Pagination
-//       { $skip: skip },
-//       { $limit: limit },
-
-//       // Final shape
-//       {
-//         $project: {
-//           _id: 0,
-//           skuId: "$_id",
-//           productId: 1,
-//           productName: 1,
-//           brandId: 1,
-//           brand: { _id: "$brand._id", name: "$brand.name" },
-//           variantValues: 1, // ✅ keys are NAMES now
-//           thumbnailImg: 1,
-//           totalSold: 1,
-//           totalRevenue: 1,
-//           lastItemCreatedAt: 1,
-
-//           // status history (latest order item for this SKU)
-//           resolvedStatusHistory: "$latestResolvedStatusHistory",
-//           lastStatus: {
-//             code: "$latestLastStatusEntry.status.code",
-//             status: "$latestLastStatusEntry.status.status",
-//             status_desc: "$latestLastStatusEntry.status.status_desc",
-//             at: "$latestLastStatusEntry.at",
-//           },
-//         },
-//       },
-//     ];
-
-//     const items = await OrderItem.aggregate(pipeline).exec();
-//     return res.json({ items, page: { skip, limit } });
-//   } catch (err) {
-//     console.error("getSellerOrderItems error:", err);
-//     return res.status(500).json({ error: "Internal Server Error" });
-//   }
-// };
 const getSellerOrderItems = async (req, res) => {
   const sellerId = req.user?.userId;
   if (!sellerId) return res.status(401).json({ error: "Unauthorized" });
@@ -1351,9 +999,683 @@ const getAdminOrders = async (req, res) => {
   }
 };
 
+// const getOrderDetails = async (req, res) => {
+//   const userId = req.user?.userId; // authenticated customer
+//   const isAdmin = req.user?.is_admin || req.user?.is_super_admin; // admins can view anything
+
+//   const orderId = req.params.orderId; // param route
+//   if (!orderId || !/^[a-fA-F0-9]{24}$/.test(orderId)) {
+//     return res
+//       .status(400)
+//       .json({ error: "Valid orderId (ObjectId) required in URL params" });
+//   }
+
+//   try {
+//     const oid = new mongoose.Types.ObjectId(orderId);
+
+//     // 0) Ownership check (fast path, no heavy $lookups)
+//     const ownerDoc = await Order.findById(oid).select("_id user_id").lean();
+//     if (!ownerDoc) return res.status(404).json({ error: "Order not found" });
+//     if (!isAdmin && String(ownerDoc.user_id) !== String(userId)) {
+//       return res.status(403).json({ error: "Forbidden" });
+//     }
+
+//     // 1) Optional cache (safe after ownership check)
+//     const cacheKey = `order:${orderId}`;
+//     try {
+//       const cached = await getHash(cacheKey, "payload");
+//       if (cached) {
+//         const parsed = JSON.parse(cached);
+//         if (
+//           isAdmin ||
+//           String(parsed?.user?._id) === String(ownerDoc.user_id)
+//         ) {
+//           return res.json({ ok: true, order: parsed, cached: true });
+//         }
+//       }
+//     } catch {}
+
+//     // 2) Full aggregation
+//     const pipeline = [
+//       { $match: { _id: oid } },
+
+//       // user + shipping address
+//       {
+//         $lookup: {
+//           from: "users",
+//           localField: "user_id",
+//           foreignField: "_id",
+//           as: "user",
+//         },
+//       },
+//       { $unwind: "$user" },
+//       {
+//         $lookup: {
+//           from: "useraddresses",
+//           localField: "shipping_address_id",
+//           foreignField: "_id",
+//           as: "shipping_address",
+//         },
+//       },
+//       { $unwind: { path: "$shipping_address", preserveNullAndEmptyArrays: true } },
+//       {
+//         $lookup: {
+//           from: "districts",
+//           localField: "shipping_address.district_id",
+//           foreignField: "_id",
+//           as: "district",
+//         },
+//       },
+//       { $unwind: { path: "$district", preserveNullAndEmptyArrays: true } },
+//       {
+//         $lookup: {
+//           from: "upazilas",
+//           localField: "shipping_address.upazila_id",
+//           foreignField: "_id",
+//           as: "upazila",
+//         },
+//       },
+//       { $unwind: { path: "$upazila", preserveNullAndEmptyArrays: true } },
+
+//       // items + status resolve + sku/product/brand/variants
+//       {
+//         $lookup: {
+//           from: "orderitems",
+//           let: { oid: "$_id" },
+//           pipeline: [
+//             { $match: { $expr: { $eq: ["$order_id", "$$oid"] } } },
+
+//             {
+//               $lookup: {
+//                 from: "orderstatuses",
+//                 localField: "item_status_history.status_code",
+//                 foreignField: "_id",
+//                 as: "statusDocs",
+//               },
+//             },
+//             {
+//               $addFields: {
+//                 resolved_status_history: {
+//                   $map: {
+//                     input: { $ifNull: ["$item_status_history", []] },
+//                     as: "ish",
+//                     in: {
+//                       note: "$$ish.note",
+//                       at: "$$ish.at",
+//                       status: {
+//                         $let: {
+//                           vars: {
+//                             match: {
+//                               $first: {
+//                                 $filter: {
+//                                   input: "$statusDocs",
+//                                   as: "sd",
+//                                   cond: { $eq: ["$$sd._id", "$$ish.status_code"] },
+//                                 },
+//                               },
+//                             },
+//                           },
+//                           in: {
+//                             code: "$$match._id",
+//                             status: "$$match.status",
+//                             status_desc: "$$match.status_desc",
+//                           },
+//                         },
+//                       },
+//                     },
+//                   },
+//                 },
+//               },
+//             },
+//             {
+//               $addFields: {
+//                 last_status_entry: {
+//                   $reduce: {
+//                     input: { $ifNull: ["$resolved_status_history", []] },
+//                     initialValue: null,
+//                     in: {
+//                       $cond: [
+//                         {
+//                           $or: [
+//                             { $eq: ["$$value", null] },
+//                             { $gt: ["$$this.at", "$$value.at"] },
+//                           ],
+//                         },
+//                         "$$this",
+//                         "$$value",
+//                       ],
+//                     },
+//                   },
+//                 },
+//               },
+//             },
+
+//             { $lookup: { from: "productskus", localField: "sku_id", foreignField: "_id", as: "sku" } },
+//             { $unwind: "$sku" },
+//             { $lookup: { from: "products", localField: "sku.product_id", foreignField: "_id", as: "product" } },
+//             { $unwind: "$product" },
+//             { $lookup: { from: "brands", localField: "product.brandId", foreignField: "_id", as: "brand" } },
+//             { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
+
+//             {
+//               $lookup: {
+//                 from: "variants",
+//                 let: { catId: "$product.category_id" },
+//                 pipeline: [
+//                   { $match: { $expr: { $eq: ["$category_id", "$$catId"] } } },
+//                   { $project: { _id: 1, name: 1, values: 1 } },
+//                 ],
+//                 as: "variants",
+//               },
+//             },
+//             { $addFields: { variant_pairs: { $objectToArray: { $ifNull: ["$sku.variant_values", {}] } } } },
+//             {
+//               $addFields: {
+//                 resolved_variant_entries: {
+//                   $map: {
+//                     input: "$variant_pairs",
+//                     as: "vp",
+//                     in: {
+//                       $let: {
+//                         vars: {
+//                           looksLikeId: {
+//                             $regexMatch: {
+//                               input: "$$vp.k",
+//                               regex: /^[a-fA-F0-9]{24}$/,
+//                             },
+//                           },
+//                           byId: {
+//                             $first: {
+//                               $filter: {
+//                                 input: "$variants",
+//                                 as: "vr",
+//                                 cond: {
+//                                   $eq: ["$$vr._id", { $toObjectId: "$$vp.k" }],
+//                                 },
+//                               },
+//                             },
+//                           },
+//                           byName: {
+//                             $first: {
+//                               $filter: {
+//                                 input: "$variants",
+//                                 as: "vr",
+//                                 cond: { $eq: ["$$vr.name", "$$vp.k"] },
+//                               },
+//                             },
+//                           },
+//                         },
+//                         in: {
+//                           k: {
+//                             $ifNull: [
+//                               { $cond: ["$$looksLikeId", "$$byId.name", null] },
+//                               "$$byName.name",
+//                               "$$vp.k",
+//                             ],
+//                           },
+//                           v: "$$vp.v",
+//                         },
+//                       },
+//                     },
+//                   },
+//                 },
+//               },
+//             },
+//             { $addFields: { variant_name_values: { $arrayToObject: "$resolved_variant_entries" } } },
+
+//             {
+//               $project: {
+//                 _id: 1,
+//                 sku_id: 1,
+//                 quantity: 1,
+//                 mrp_each: 1,
+//                 sp_each: 1,
+//                 cashback_amount: 1,
+//                 delivery_amount: 1,
+//                 createdAt: 1,
+//                 product: {
+//                   _id: "$product._id",
+//                   name: "$product.name",
+//                   brand: { _id: "$brand._id", name: "$brand.name" },
+//                 },
+//                 sku: { _id: "$sku._id", thumbnail_img: "$sku.thumbnail_img" },
+//                 variantValues: "$variant_name_values",
+//                 resolvedStatusHistory: "$resolved_status_history",
+//                 lastStatus: {
+//                   code: "$last_status_entry.status.code",
+//                   status: "$last_status_entry.status.status",
+//                   status_desc: "$last_status_entry.status.status_desc",
+//                   at: "$last_status_entry.at",
+//                 },
+//               },
+//             },
+//           ],
+//           as: "items",
+//         },
+//       },
+
+//       // order-level rollups + payment_status
+//       {
+//         $addFields: {
+//           item_subtotal: {
+//             $sum: {
+//               $map: {
+//                 input: "$items",
+//                 as: "it",
+//                 in: { $multiply: ["$$it.sp_each", "$$it.quantity"] },
+//               },
+//             },
+//           },
+//           item_quantity_total: { $sum: "$items.quantity" },
+//           delivery_total: { $sum: "$items.delivery_amount" },
+//           cashback_total: { $sum: "$items.cashback_amount" },
+//           last_item_status_entry: {
+//             $reduce: {
+//               input: {
+//                 $filter: {
+//                   input: {
+//                     $map: { input: "$items", as: "it", in: "$$it.lastStatus" },
+//                   },
+//                   as: "lse",
+//                   cond: { $ne: ["$$lse", null] },
+//                 },
+//               },
+//               initialValue: null,
+//               in: {
+//                 $cond: [
+//                   { $or: [{ $eq: ["$$value", null] }, { $gt: ["$$this.at", "$$value.at"] }] },
+//                   "$$this",
+//                   "$$value",
+//                 ],
+//               },
+//             },
+//           },
+//           payment_status: {
+//             $cond: [
+//               {
+//                 $gt: [
+//                   {
+//                     $size: {
+//                       $filter: {
+//                         input: "$items",
+//                         as: "it",
+//                         cond: { $eq: ["$$it.lastStatus.status", "PAID"] },
+//                       },
+//                     },
+//                   },
+//                   0,
+//                 ],
+//               },
+//               "PAID",
+//               "UNPAID",
+//             ],
+//           },
+//         },
+//       },
+
+//       // final shape
+//       {
+//         $project: {
+//           _id: 1,
+//           createdAt: 1,
+//           updatedAt: 1,
+//           total_amount: 1,
+//           item_subtotal: 1,
+//           delivery_total: 1,
+//           cashback_total: 1,
+//           item_quantity_total: 1,
+//           payment_status: 1,
+//           user: {
+//             _id: "$user._id",
+//             full_name: "$user.full_name",
+//             email: "$user.email",
+//             phone_number: "$user.phone_number",
+//           },
+//           shippingAddress: {
+//             _id: "$shipping_address._id",
+//             label: "$shipping_address.label",
+//             full_name: "$shipping_address.full_name",
+//             phone: "$shipping_address.phone",
+//             address: "$shipping_address.address",
+//             postcode: "$shipping_address.postcode",
+//             landmark: "$shipping_address.landmark",
+//             district: { _id: "$district._id", name: "$district.name" },
+//             upazila: { _id: "$upazila._id", name: "$upazila.name" },
+//           },
+//           items: 1,
+//           lastStatus: "$last_item_status_entry",
+//         },
+//       },
+//     ];
+
+//     const docs = await Order.aggregate(pipeline).exec();
+//     const order = docs?.[0];
+//     if (!order) return res.status(404).json({ error: "Order not found" });
+
+//     // 3) Cache ~10 min
+//     try {
+//       await setHash(cacheKey, "payload", JSON.stringify(order), 600);
+//     } catch {}
+
+//     return res.json({ ok: true, order });
+//   } catch (err) {
+//     console.error("getOrderDetails error:", err);
+//     return res.status(500).json({ error: "Server error" });
+//   }
+// };
+// controllers/orderController.js
+// controllers/orderController.js
+const getOrderDetails = async (req, res) => {
+  const userId = req.user?.userId;
+  const isAdmin = req.user?.is_admin || req.user?.is_super_admin;
+
+  const orderId = req.params.orderId;
+  if (!orderId || !/^[a-fA-F0-9]{24}$/.test(orderId)) {
+    return res
+      .status(400)
+      .json({ error: "Valid orderId (ObjectId) required in URL params" });
+  }
+
+  try {
+    const oid = new mongoose.Types.ObjectId(orderId);
+
+    // 0) ownership check
+    const ownerDoc = await Order.findById(oid).select("_id user_id").lean();
+    if (!ownerDoc) return res.status(404).json({ error: "Order not found" });
+    if (!isAdmin && String(ownerDoc.user_id) !== String(userId)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    // 1) cache (safe after ownership check)
+    const cacheKey = `order:${orderId}`;
+    try {
+      const cached = await getHash(cacheKey, "payload");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (isAdmin || String(parsed?.user?._id) === String(ownerDoc.user_id)) {
+          return res.json({ ok: true, order: parsed, cached: true });
+        }
+      }
+    } catch {}
+
+    // 2) full aggregation
+    const pipeline = [
+      { $match: { _id: oid } },
+
+      // user + address
+      { $lookup: { from: "users", localField: "user_id", foreignField: "_id", as: "user" } },
+      { $unwind: "$user" },
+      { $lookup: { from: "useraddresses", localField: "shipping_address_id", foreignField: "_id", as: "shipping_address" } },
+      { $unwind: { path: "$shipping_address", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "districts", localField: "shipping_address.district_id", foreignField: "_id", as: "district" } },
+      { $unwind: { path: "$district", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "upazilas", localField: "shipping_address.upazila_id", foreignField: "_id", as: "upazila" } },
+      { $unwind: { path: "$upazila", preserveNullAndEmptyArrays: true } },
+
+      // items + status resolution + sku/product/brand/variants
+      {
+        $lookup: {
+          from: "orderitems",
+          let: { oid: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$order_id", "$$oid"] } } },
+
+            { // statuses dictionary
+              $lookup: {
+                from: "orderstatuses",
+                localField: "item_status_history.status_code",
+                foreignField: "_id",
+                as: "statusDocs",
+              },
+            },
+            { // resolved history
+              $addFields: {
+                resolved_status_history: {
+                  $map: {
+                    input: { $ifNull: ["$item_status_history", []] },
+                    as: "ish",
+                    in: {
+                      note: "$$ish.note",
+                      at: "$$ish.at",
+                      status: {
+                        $let: {
+                          vars: {
+                            match: {
+                              $first: {
+                                $filter: {
+                                  input: "$statusDocs",
+                                  as: "sd",
+                                  cond: { $eq: ["$$sd._id", "$$ish.status_code"] },
+                                },
+                              },
+                            },
+                          },
+                          in: {
+                            code: "$$match._id",
+                            status: "$$match.status",
+                            status_desc: "$$match.status_desc",
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            { // last history point per item
+              $addFields: {
+                last_status_entry: {
+                  $reduce: {
+                    input: { $ifNull: ["$resolved_status_history", []] },
+                    initialValue: null,
+                    in: {
+                      $cond: [
+                        { $or: [{ $eq: ["$$value", null] }, { $gt: ["$$this.at", "$$value.at"] }] },
+                        "$$this",
+                        "$$value",
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+
+            { $lookup: { from: "productskus", localField: "sku_id", foreignField: "_id", as: "sku" } },
+            { $unwind: "$sku" },
+            { $lookup: { from: "products", localField: "sku.product_id", foreignField: "_id", as: "product" } },
+            { $unwind: "$product" },
+            { $lookup: { from: "brands", localField: "product.brandId", foreignField: "_id", as: "brand" } },
+            { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
+
+            // variants mapping id/name to name
+            {
+              $lookup: {
+                from: "variants",
+                let: { catId: "$product.category_id" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$category_id", "$$catId"] } } },
+                  { $project: { _id: 1, name: 1, values: 1 } },
+                ],
+                as: "variants",
+              },
+            },
+            { $addFields: { variant_pairs: { $objectToArray: { $ifNull: ["$sku.variant_values", {}] } } } },
+            {
+              $addFields: {
+                resolved_variant_entries: {
+                  $map: {
+                    input: "$variant_pairs",
+                    as: "vp",
+                    in: {
+                      $let: {
+                        vars: {
+                          looksLikeId: { $regexMatch: { input: "$$vp.k", regex: /^[a-fA-F0-9]{24}$/ } },
+                          byId: {
+                            $first: {
+                              $filter: {
+                                input: "$variants",
+                                as: "vr",
+                                cond: { $eq: ["$$vr._id", { $toObjectId: "$$vp.k" }] },
+                              },
+                            },
+                          },
+                          byName: {
+                            $first: {
+                              $filter: {
+                                input: "$variants",
+                                as: "vr",
+                                cond: { $eq: ["$$vr.name", "$$vp.k"] },
+                              },
+                            },
+                          },
+                        },
+                        in: {
+                          k: { $ifNull: [{ $cond: ["$$looksLikeId", "$$byId.name", null] }, "$$byName.name", "$$vp.k"] },
+                          v: "$$vp.v",
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            { $addFields: { variant_name_values: { $arrayToObject: "$resolved_variant_entries" } } },
+
+            { // final item projection
+              $project: {
+                _id: 1,
+                sku_id: 1,
+                quantity: 1,
+                mrp_each: 1,
+                sp_each: 1,
+                cashback_amount: 1,
+                delivery_amount: 1,
+                createdAt: 1,
+                product: { _id: "$product._id", name: "$product.name", brand: { _id: "$brand._id", name: "$brand.name" } },
+                sku: { _id: "$sku._id", thumbnail_img: "$sku.thumbnail_img" },
+                variantValues: "$variant_name_values",
+                resolvedStatusHistory: "$resolved_status_history",
+                lastStatus: {
+                  code: "$last_status_entry.status.code",
+                  status: "$last_status_entry.status.status",
+                  status_desc: "$last_status_entry.status.status_desc",
+                  at: "$last_status_entry.at",
+                },
+              },
+            },
+          ],
+          as: "items",
+        },
+      },
+
+      // order-level rollups + payment_status (ANY PAID anywhere)
+      {
+        $addFields: {
+          item_subtotal: {
+            $sum: { $map: { input: "$items", as: "it", in: { $multiply: ["$$it.sp_each", "$$it.quantity"] } } },
+          },
+          item_quantity_total: { $sum: "$items.quantity" },
+          delivery_total: { $sum: "$items.delivery_amount" },
+          cashback_total: { $sum: "$items.cashback_amount" },
+
+          last_item_status_entry: {
+            $reduce: {
+              input: {
+                $filter: {
+                  input: { $map: { input: "$items", as: "it", in: "$$it.lastStatus" } },
+                  as: "lse",
+                  cond: { $ne: ["$$lse", null] },
+                },
+              },
+              initialValue: null,
+              in: {
+                $cond: [
+                  { $or: [{ $eq: ["$$value", null] }, { $gt: ["$$this.at", "$$value.at"] }] },
+                  "$$this",
+                  "$$value",
+                ],
+              },
+            },
+          },
+
+          // PAID if ANY history entry across ANY item == "PAID"
+          payment_status: {
+            $cond: [
+              {
+                $gt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: {
+                          $reduce: {
+                            input: "$items",
+                            initialValue: [],
+                            in: { $concatArrays: ["$$value", "$$this.resolvedStatusHistory"] },
+                          },
+                        },
+                        as: "h",
+                        cond: { $eq: ["$$h.status.status", "PAID"] },
+                      },
+                    },
+                  },
+                  0,
+                ],
+              },
+              "PAID",
+              "UNPAID",
+            ],
+          },
+        },
+      },
+
+      // final shape
+      {
+        $project: {
+          _id: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          total_amount: 1,
+          item_subtotal: 1,
+          delivery_total: 1,
+          cashback_total: 1,
+          item_quantity_total: 1,
+          payment_status: 1,
+          user: { _id: "$user._id", full_name: "$user.full_name", email: "$user.email", phone_number: "$user.phone_number" },
+          shippingAddress: {
+            _id: "$shipping_address._id",
+            label: "$shipping_address.label",
+            full_name: "$shipping_address.full_name",
+            phone: "$shipping_address.phone",
+            address: "$shipping_address.address",
+            postcode: "$shipping_address.postcode",
+            landmark: "$shipping_address.landmark",
+            district: { _id: "$district._id", name: "$district.name" },
+            upazila: { _id: "$upazila._id", name: "$upazila.name" },
+          },
+          items: 1,
+          lastStatus: "$last_item_status_entry",
+        },
+      },
+    ];
+
+    const docs = await Order.aggregate(pipeline).exec();
+    const order = docs?.[0];
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    try { await setHash(cacheKey, "payload", JSON.stringify(order), 600); } catch {}
+
+    return res.json({ ok: true, order });
+  } catch (err) {
+    console.error("getOrderDetails error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 module.exports = {
+  getOrderStatuses,
   createOrder,
   getUserOrders,
   getSellerOrderItems,
   getAdminOrders,
+  getOrderDetails
 };

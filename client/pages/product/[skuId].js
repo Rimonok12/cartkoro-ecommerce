@@ -7,7 +7,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Loading from "@/components/Loading";
 import ProductCard from "@/components/ProductCard";
-import SuccessModal from "@/components/SuccessModal"; // <-- ensure this path is correct
+import SuccessModal from "@/components/SuccessModal"; // ensure this path is correct
 import { useAppContext } from "@/context/AppContext";
 import api from "@/lib/axios";
 import { essentialsOnLoad } from "@/lib/ssrHelper";
@@ -23,19 +23,101 @@ const inr = (n) =>
   new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n || 0);
 const emi = (amount, months = 12) => Math.ceil((amount || 0) / months);
 
-// Normalize variant keys so UI can rely on .variant_values.color/storage/ram
-const normalizeSku = (s) => {
-  const v = s?.variant_values || {};
-  const vv = {
-    color: v.color ?? v.Color ?? null,
-    storage: v.storage ?? v.Storage ?? v.ROM ?? null,
-    ram: v.ram ?? v.RAM ?? v.memory ?? null,
+const capitalize = (s) =>
+  typeof s === "string" && s.length
+    ? s.charAt(0).toUpperCase() + s.slice(1)
+    : s;
+
+/**
+ * Parse variant metadata coming from /api/product/getVariants/:categoryId
+ * and fall back to inferring from SKUs if needed.
+ *
+ * Accepts several shapes:
+ *  A) { variant_keys: ["Color","Size"], orders: { Color:[...], Size:[...] } }
+ *  B) [ { name:"Color", values:[...] }, { name:"Size", values:[...] } ]   // mirrors your Variant model
+ *  C) ["Color","Size"]
+ */
+const parseVariantMeta = (raw, skus) => {
+  const uniq = (xs) => [...new Set(xs.filter(Boolean))];
+
+  const inferFromSkus = (keys) => {
+    const allKeys =
+      keys && keys.length
+        ? keys
+        : uniq(
+            skus.flatMap((s) => Object.keys(s?.variant_values || {})).filter(Boolean)
+          );
+    const orders = {};
+    allKeys.forEach((k) => {
+      orders[k] = uniq(skus.map((s) => s?.variant_values?.[k]));
+    });
+    return { keys: allKeys, orders };
   };
+
+  if (!raw) return inferFromSkus([]);
+
+  // A) object w/ variant_keys + orders
+  if (raw.variant_keys && Array.isArray(raw.variant_keys)) {
+    const keys = raw.variant_keys;
+    const base = inferFromSkus(keys);
+    const orders =
+      raw.orders && typeof raw.orders === "object" ? { ...base.orders, ...raw.orders } : base.orders;
+    keys.forEach((k) => {
+      if (!orders[k] || !orders[k].length) {
+        orders[k] = base.orders[k] || [];
+      }
+    });
+    return { keys, orders };
+  }
+
+  // B) array of { name, values }
+  if (Array.isArray(raw) && raw.every((x) => x && typeof x === "object" && ("name" in x))) {
+    const keys = raw.map((x) => x.name);
+    const orders = {};
+    const base = inferFromSkus(keys);
+    raw.forEach((x) => {
+      orders[x.name] =
+        Array.isArray(x.values) && x.values.length ? x.values : base.orders[x.name] || [];
+    });
+    keys.forEach((k) => {
+      if (!orders[k] || !orders[k].length) orders[k] = base.orders[k] || [];
+    });
+    return { keys, orders };
+  }
+
+  // C) array of strings
+  if (Array.isArray(raw) && raw.every((x) => typeof x === "string")) {
+    return inferFromSkus(raw);
+  }
+
+  // Unknown shape → infer everything from SKUs
+  return inferFromSkus([]);
+};
+
+// Normalize variant keys AND preserve all arbitrary keys.
+// (Your backend already converts variant IDs → names, so we keep names as-is.)
+const normalizeSku = (s) => {
+  const raw = s?.variant_values || {};
+  const vv = { ...raw };
+
+  // Friendly aliasing (if your data ever has mixed-case keys)
+  if (vv.Color != null && vv.color == null) vv.color = vv.Color;
+  if (vv.Storage != null && vv.storage == null) vv.storage = vv.Storage;
+  if (vv.ROM != null && vv.storage == null) vv.storage = vv.ROM;
+  if (vv.RAM != null && vv.ram == null) vv.ram = vv.RAM;
+  if (vv.memory != null && vv.ram == null) vv.ram = vv.memory;
+  if (vv.Size != null && vv.size == null) vv.size = vv.Size;
+
   const left =
     typeof s?.initial_stock === "number" && typeof s?.sold_stock === "number"
       ? s.initial_stock - s.sold_stock
       : s?.left_stock;
-  return { ...s, variant_values: vv, left_stock: left };
+
+  return {
+    ...s,
+    variant_values: vv,
+    left_stock: left,
+  };
 };
 
 // Check if a sku is already present in the cart
@@ -46,7 +128,6 @@ export default function Product() {
   const router = useRouter();
   const { currency, cartData, userData, addToCart } = useAppContext();
   const { skuId } = router.query;
-  console.log("cartData::", cartData);
 
   const [loading, setLoading] = useState(true);
 
@@ -61,10 +142,9 @@ export default function Product() {
   const [selectedSku, setSelectedSku] = useState(null);
   const [mainImage, setMainImage] = useState(null);
 
-  // first-render option orders (stable across variant changes)
-  const [orderColors, setOrderColors] = useState([]);
-  const [orderStorages, setOrderStorages] = useState([]);
-  const [orderRams, setOrderRams] = useState([]);
+  // dynamic variant schema from API (keys + value orders)
+  const [variantKeys, setVariantKeys] = useState([]);     // e.g. ["Color","Size"] or ["color","ram"]
+  const [variantOrders, setVariantOrders] = useState({}); // e.g. { Color:[...], Size:[...] }
 
   // featured
   const [featuredProducts, setFeaturedProducts] = useState([]);
@@ -118,16 +198,10 @@ export default function Product() {
         // Build array ONCE then freeze its order
         const arr = [main, ...others].filter(Boolean);
 
-        // Capture first-render option orders (stable)
-        const uniq = (xs) => [...new Set(xs.filter(Boolean))];
-        setOrderColors(uniq(arr.map((s) => s?.variant_values?.color)));
-        setOrderStorages(uniq(arr.map((s) => s?.variant_values?.storage)));
-        setOrderRams(uniq(arr.map((s) => s?.variant_values?.ram)));
-
         setSkus(arr); // <- keep this array as-is (do not reorder later)
         const current =
           arr.find((s) => String(s?._id) === String(skuId)) || arr[0] || null;
-        console.log("data::", data);
+
         setSelectedSku(current);
         setMainImage(current?.thumbnail_img || null);
         setProductName(data?.product_name ?? "");
@@ -144,6 +218,46 @@ export default function Product() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skuId]); // safe: we guard above to not refetch on shallow variant changes
 
+  /* ------------- variant schema (API-driven) ------------- */
+  useEffect(() => {
+    if (!categoryId || !skus.length) return;
+    (async () => {
+      try {
+        // This proxies to your NODE_HOST /api/product/getVariants/:categoryId
+        const res = await fetch(
+          `/api/product/getVariants/${encodeURIComponent(categoryId)}`
+        );
+        const raw = await res.json();
+
+        // Your Variant model is { name, values } per doc, so "raw" is likely an array of that shape.
+        // parseVariantMeta handles that and falls back to SKUs if needed.
+        const meta = parseVariantMeta(raw, skus);
+
+        // Ensure orders exist for each key
+        const orders = { ...(meta.orders || {}) };
+        (meta.keys || []).forEach((k) => {
+          if (!Array.isArray(orders[k]) || !orders[k].length) {
+            const uniq = (xs) => [...new Set(xs.filter(Boolean))];
+            orders[k] = uniq(skus.map((s) => s?.variant_values?.[k]));
+          }
+        });
+
+        setVariantKeys(meta.keys || []);
+        setVariantOrders(orders);
+      } catch (e) {
+        // graceful fallback: infer everything from SKUs
+        const uniq = (xs) => [...new Set(xs.filter(Boolean))];
+        const keys = uniq(
+          skus.flatMap((s) => Object.keys(s?.variant_values || {})).filter(Boolean)
+        );
+        const orders = {};
+        keys.forEach((k) => (orders[k] = uniq(skus.map((s) => s?.variant_values?.[k]))));
+        setVariantKeys(keys);
+        setVariantOrders(orders);
+      }
+    })();
+  }, [categoryId, skus]);
+
   /* ------------- featured ------------- */
   useEffect(() => {
     if (categoryId) {
@@ -159,25 +273,13 @@ export default function Product() {
     }
   }, [categoryId]);
 
-  /* ------------- variant option sets (use frozen orders) ------------- */
-  const optionSets = useMemo(
-    () => ({
-      colors: orderColors,
-      storages: orderStorages,
-      rams: orderRams,
-    }),
-    [orderColors, orderStorages, orderRams]
-  );
-
-  /* ------------- helpers to find/select SKUs ------------- */
-  // Preferred: return an IN-STOCK match; if none and allowOOS=true, return the first match (OOS).
+  /* ------------- helpers to find/select SKUs (generic across arbitrary variant keys) ------------- */
+  // Prefer an IN-STOCK match; if none and allowOOS=true, return first match (OOS allowed).
   const findSku = (sel, opts = { allowOOS: false }) => {
     const matches = skus.filter((s) => {
-      const v = s.variant_values || {};
-      return (
-        (sel.color == null || v.color === sel.color) &&
-        (sel.storage == null || v.storage === sel.storage) &&
-        (sel.ram == null || v.ram === sel.ram)
+      const v = s?.variant_values || {};
+      return Object.entries(sel).every(
+        ([k, val]) => val == null || v[k] === val
       );
     });
     const inStock = matches.find((m) => Number(m?.left_stock ?? 0) > 0);
@@ -188,11 +290,8 @@ export default function Product() {
   const onPickVariant = (patch) => {
     if (!selectedSku) return;
     const cur = selectedSku.variant_values || {};
-    const nextSel = {
-      color: patch.color ?? cur.color ?? null,
-      storage: patch.storage ?? cur.storage ?? null,
-      ram: patch.ram ?? cur.ram ?? null,
-    };
+    const nextSel = { ...cur, ...patch };
+
     // Select even if OOS (so users can view that variant), buttons will handle disabling.
     const sku = findSku(nextSel, { allowOOS: true });
     if (sku) {
@@ -206,34 +305,11 @@ export default function Product() {
     }
   };
 
-  // For chips: show dim state when that option has NO in-stock SKU with current partial selection.
-  const colorHasStock = (color) =>
-    !!findSku(
-      {
-        color,
-        storage: selectedSku?.variant_values?.storage,
-        ram: selectedSku?.variant_values?.ram,
-      },
-      { allowOOS: false }
-    );
-  const storageHasStock = (storage) =>
-    !!findSku(
-      {
-        color: selectedSku?.variant_values?.color,
-        storage,
-        ram: selectedSku?.variant_values?.ram,
-      },
-      { allowOOS: false }
-    );
-  const ramHasStock = (ram) =>
-    !!findSku(
-      {
-        color: selectedSku?.variant_values?.color,
-        storage: selectedSku?.variant_values?.storage,
-        ram,
-      },
-      { allowOOS: false }
-    );
+  const optionHasStock = (key, value) => {
+    const cur = selectedSku?.variant_values || {};
+    const sel = { ...cur, [key]: value };
+    return !!findSku(sel, { allowOOS: false });
+  };
 
   /* ------------- keep skuAdded synced with cart ------------- */
   useEffect(() => {
@@ -294,7 +370,7 @@ export default function Product() {
 
   const isOutOfStock = !selectedSku || Number(selectedSku.left_stock ?? 0) <= 0;
 
-  // discount % (green text)
+  // price + discount
   const hasMrp = Number(selectedSku?.MRP) > 0;
   const hasSp = Number(selectedSku?.SP) > 0;
   const percentOff =
@@ -310,7 +386,7 @@ export default function Product() {
     <>
       <Navbar />
 
-      {/* Success Modal */}
+      {/* Success Modal (uncomment if you want to show it) */}
       {/* <SuccessModal open={successOpen} message={successMsg} onOK={handleSuccessOK} /> */}
 
       <div className="px-6 md:px-16 lg:px-32 pt-14 space-y-10">
@@ -381,131 +457,119 @@ export default function Product() {
 
             <hr className="bg-gray-200 my-6" />
 
-            {/* ========== selectors (stable order, never re-ordered) ========== */}
-            {(optionSets.colors.length ||
-              optionSets.storages.length ||
-              optionSets.rams.length) > 0 && (
+            {/* ========== dynamic selectors (API-driven) ========== */}
+            {variantKeys?.length > 0 && (
               <div className="space-y-6">
-                {/* Color */}
-                {!!optionSets.colors.length && (
-                  <div className="flex items-start gap-6">
-                    <div className="w-24 shrink-0 text-gray-600 font-medium mt-1">
-                      Color
-                    </div>
-                    <div className="flex gap-4 flex-wrap">
-                      {optionSets.colors.map((color) => {
-                        // find a SKU just to show a thumbnail (allow OOS)
-                        const skuForColor =
-                          findSku(
-                            {
-                              color,
-                              storage: selectedSku?.variant_values?.storage,
-                              ram: selectedSku?.variant_values?.ram,
-                            },
-                            { allowOOS: true }
-                          ) || findSku({ color }, { allowOOS: true });
+                {variantKeys.map((key) => {
+                  // helper
+                  const uniq = (xs) => [...new Set(xs.filter(Boolean))];
 
-                        const thumb =
-                          skuForColor?.thumbnail_img ||
-                          selectedSku.thumbnail_img;
+                  // // Prefer API-provided order; fall back to SKUs if empty
+                  // const fromApi = (variantOrders?.[key] || []).filter(Boolean);
+                  // const fromSkus = uniq(
+                  //   skus.map((s) => s?.variant_values?.[key]).filter(Boolean)
+                  // );
 
-                        const active =
-                          color === selectedSku?.variant_values?.color;
-                        const hasStock = colorHasStock(color); // for dim state only
+                  // // Merge while preserving API order first, then any missing values from SKUs
+                  // const valuesOrdered = [
+                  //   ...fromApi,
+                  //   ...fromSkus.filter((v) => !fromApi.includes(v)),
+                  // ].filter(Boolean);
 
-                        return (
-                          <button
-                            key={color}
-                            onClick={() => onPickVariant({ color })}
-                            title={color}
-                            className={cx(
-                              "rounded-lg overflow-hidden border w-20 h-16 flex items-center justify-center",
-                              active
-                                ? "border-blue-600 ring-2 ring-blue-600"
-                                : "border-gray-300",
-                              !hasStock && "opacity-40"
-                            )}
-                          >
-                            {thumb ? (
-                              <Image
-                                src={thumb}
-                                alt={color}
-                                width={160}
-                                height={120}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-sm px-2">{color}</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                  // // Deduplicate & decide visibility
+                  // const uniqueValues = uniq(valuesOrdered);
+                  const fromApi = (variantOrders?.[key] || []).filter(Boolean);
+                  const fromSkus = [...new Set(
+                    skus.map((s) => s?.variant_values?.[key]).filter(Boolean)
+                  )];
 
-                {/* Storage */}
-                {!!optionSets.storages.length && (
-                  <div className="flex items-start gap-6">
-                    <div className="w-24 shrink-0 text-gray-600 font-medium mt-1">
-                      Storage
-                    </div>
-                    <div className="flex gap-3 flex-wrap">
-                      {optionSets.storages.map((s) => {
-                        const active =
-                          s === selectedSku?.variant_values?.storage;
-                        const hasStock = storageHasStock(s);
-                        return (
-                          <button
-                            key={s}
-                            onClick={() => onPickVariant({ storage: s })}
-                            className={cx(
-                              "px-4 py-2 rounded-md border text-base font-semibold",
-                              active
-                                ? "border-blue-600 text-blue-600"
-                                : "border-gray-300 text-gray-900",
-                              !hasStock && "opacity-40"
-                            )}
-                          >
-                            {s}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                  // Only keep values that exist in this product’s SKUs
+                  const uniqueValues = fromApi.length
+                    ? fromApi.filter((v) => fromSkus.includes(v))
+                    : fromSkus;
 
-                {/* RAM */}
-                {!!optionSets.rams.length && (
-                  <div className="flex items-start gap-6">
-                    <div className="w-24 shrink-0 text-gray-600 font-medium mt-1">
-                      RAM
+                  // 🔒 If no values or only one unique value, don't render this variant group
+                  if (uniqueValues.length <= 1) return null;
+
+                  const current = selectedSku?.variant_values?.[key];
+                  const isColorLike = key.toLowerCase() === "color";
+
+                  return (
+                    <div key={key} className="flex items-start gap-6">
+                      <div className="w-24 shrink-0 text-gray-600 font-medium mt-1">
+                        {key.charAt(0).toUpperCase() + key.slice(1)}
+                      </div>
+
+                      <div
+                        className={
+                          isColorLike ? "flex gap-4 flex-wrap" : "flex gap-3 flex-wrap"
+                        }
+                      >
+                        {uniqueValues.map((val) => {
+                          const active = val === current;
+                          // show dim state if selecting this value can't produce any in-stock SKU
+                          const hasStock = optionHasStock(key, val);
+
+                          // color thumbnails (best-effort)
+                          let thumb = null;
+                          if (isColorLike) {
+                            const skuForVal =
+                              findSku(
+                                { ...selectedSku?.variant_values, [key]: val },
+                                { allowOOS: true }
+                              ) || findSku({ [key]: val }, { allowOOS: true });
+                            thumb =
+                              skuForVal?.thumbnail_img || selectedSku?.thumbnail_img || null;
+                          }
+
+                          return isColorLike ? (
+                            <button
+                              key={val}
+                              onClick={() => onPickVariant({ [key]: val })}
+                              title={val}
+                              className={cx(
+                                "rounded-lg overflow-hidden border w-20 h-16 flex items-center justify-center",
+                                active
+                                  ? "border-blue-600 ring-2 ring-blue-600"
+                                  : "border-gray-300",
+                                !hasStock && "opacity-40"
+                              )}
+                            >
+                              {thumb ? (
+                                <Image
+                                  src={thumb}
+                                  alt={val}
+                                  width={160}
+                                  height={120}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-sm px-2">{val}</span>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              key={val}
+                              onClick={() => onPickVariant({ [key]: val })}
+                              className={cx(
+                                "px-4 py-2 rounded-md border text-base font-semibold",
+                                active
+                                  ? "border-blue-600 text-blue-600"
+                                  : "border-gray-300 text-gray-900",
+                                !hasStock && "opacity-40"
+                              )}
+                            >
+                              {val}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="flex gap-3 flex-wrap">
-                      {optionSets.rams.map((r) => {
-                        const active = r === selectedSku?.variant_values?.ram;
-                        const hasStock = ramHasStock(r);
-                        return (
-                          <button
-                            key={r}
-                            onClick={() => onPickVariant({ ram: r })}
-                            className={cx(
-                              "px-4 py-2 rounded-md border text-base font-semibold",
-                              active
-                                ? "border-blue-600 text-blue-600"
-                                : "border-gray-300 text-gray-900",
-                              !hasStock && "opacity-40"
-                            )}
-                          >
-                            {r}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                  );
+                })}
               </div>
             )}
+
 
             {/* Small specs */}
             <div className="overflow-x-auto pt-6">

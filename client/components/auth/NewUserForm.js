@@ -59,12 +59,12 @@ export default function NewUserForm({ phone, onCompleted }) {
         onChange={(e) => setEmail(e.target.value)}
         className="border px-3 py-2 rounded w-full"
       />
-      <input
+      {/* <input
         placeholder="Referral Code (optional)"
         value={referral}
         onChange={(e) => setReferral(e.target.value)}
         className="border px-3 py-2 rounded w-full"
-      />
+      /> */}
 
       <label className="flex items-start gap-3 text-sm text-gray-700">
         <input
@@ -82,7 +82,7 @@ export default function NewUserForm({ phone, onCompleted }) {
           <a className="text-pink-600 font-semibold" href="/privacy" target="_blank">
             Privacy Policy
           </a>{" "}
-          and I am above 18 years old.
+          and conditions.
         </span>
       </label>
 

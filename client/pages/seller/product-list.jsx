@@ -9,6 +9,8 @@ import Loading from "@/components/Loading";
 import { requireB2B } from "@/lib/ssrHelper";
 import { useRouter } from "next/router";
 import api from "@/lib/axios";
+import Link from "next/link";
+
 
 export async function getServerSideProps(context) {
   return requireB2B(context);
@@ -354,23 +356,20 @@ export default function ProductList() {
                                                 </div>
                                               </div>
                                             </div>
-                                            <button
-                                              onClick={() =>
-                                                router.push(
-                                                  `/product/${sku._id}`
-                                                )
-                                              }
+                                            
+                                            <Link
+                                              href={`/product/${sku._id}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
                                               className="ml-auto inline-flex items-center gap-2 rounded-xl bg-orange-600 px-3.5 py-2 text-white shadow-sm hover:bg-orange-700 active:scale-[.98]"
                                             >
-                                              <span className="hidden md:block">
-                                                Visit
-                                              </span>
+                                              <span className="hidden md:block">Visit</span>
                                               <Image
                                                 className="h-3.5 w-3.5"
                                                 src={assets.redirect_icon}
                                                 alt="redirect_icon"
                                               />
-                                            </button>
+                                            </Link>
                                           </div>
                                         );
                                       })}
