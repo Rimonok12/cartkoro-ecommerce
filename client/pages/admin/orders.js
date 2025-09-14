@@ -236,6 +236,8 @@ const AdminOrdersPage = () => {
           params,
         });
         const list = res.data?.orders || res.data?.items || [];
+
+        console.log("list:::", list)
         setOrders(list);
         setPage({ skip: p.skip, limit: p.limit });
       } catch (e) {
@@ -254,19 +256,49 @@ const AdminOrdersPage = () => {
     fetchOrders(); /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, []);
 
+  // const totals = useMemo(() => {
+  //   const list = orders || [];
+  //   const revenue = list.reduce(
+  //     (s, o) =>
+  //       s +
+  //       (o?.item_subtotal || 0) +
+  //       (o?.delivery_total || 0) -
+  //       (o?.cashback_total || 0),
+  //     0
+  //   );
+  //   const items = list.reduce((s, o) => s + (o?.item_quantity_total || 0), 0);
+  //   const deliveries = list.reduce((s, o) => s + (o?.delivery_total || 0), 0);
+  //   const cashback = list.reduce((s, o) => s + (o?.cashback_total || 0), 0);
+  //   return { revenue, items, deliveries, cashback };
+  // }, [orders]);
   const totals = useMemo(() => {
     const list = orders || [];
-    const revenue = list.reduce(
-      (s, o) =>
-        s +
-        (o?.item_subtotal || 0) +
-        (o?.delivery_total || 0) -
-        (o?.cashback_total || 0),
+
+    // Prefer order-level if present, else legacy computed totals coming from API
+    const deliveries = list.reduce(
+      (s, o) => s + (Number(o?.delivery_fee ?? o?.delivery_total ?? 0) || 0),
       0
     );
-    const items = list.reduce((s, o) => s + (o?.item_quantity_total || 0), 0);
-    const deliveries = list.reduce((s, o) => s + (o?.delivery_total || 0), 0);
-    const cashback = list.reduce((s, o) => s + (o?.cashback_total || 0), 0);
+    const cashback = list.reduce(
+      (s, o) => s + (Number(o?.order_cashback ?? o?.cashback_total ?? 0) || 0),
+      0
+    );
+    const items = list.reduce(
+      (s, o) => s + (Number(o?.item_quantity_total ?? 0) || 0),
+      0
+    );
+
+    // Net revenue per order = total_amount when present; else fallback
+    const revenue = list.reduce((s, o) => {
+      const grand = Number(
+        o?.total_amount ??
+        (o?.item_subtotal ?? 0) +
+        (o?.delivery_fee ?? o?.delivery_total ?? 0) -
+        (o?.order_cashback ?? o?.cashback_total ?? 0)
+      ) || 0;
+      return s + grand;
+    }, 0);
+
     return { revenue, items, deliveries, cashback };
   }, [orders]);
 
@@ -422,40 +454,28 @@ const AdminOrdersPage = () => {
 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:text-right">
                                   <div>
-                                    <div className="text-[11px] text-gray-500">
-                                      Items
-                                    </div>
+                                    <div className="text-[11px] text-gray-500">Total Items</div>
+                                    <div className="font-semibold">{bd(o.item_quantity_total)}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-[11px] text-gray-500">Total Payable</div>
                                     <div className="font-semibold">
-                                      {bd(o.item_quantity_total)}
+                                      {currency}{bd(o.total_amount)}
                                     </div>
                                   </div>
                                   <div>
-                                    <div className="text-[11px] text-gray-500">
-                                      Subtotal
-                                    </div>
+                                    <div className="text-[11px] text-gray-500">Delivery</div>
                                     <div className="font-semibold">
-                                      {currency}
-                                      {bd(o.item_subtotal)}
+                                      {currency}{bd(o.delivery_fee ?? o.delivery_total ?? 0)}
                                     </div>
                                   </div>
                                   <div>
-                                    <div className="text-[11px] text-gray-500">
-                                      Delivery
-                                    </div>
+                                    <div className="text-[11px] text-gray-500">Cashback</div>
                                     <div className="font-semibold">
-                                      {currency}
-                                      {bd(o.delivery_total)}
+                                      {currency}{bd(o.order_cashback ?? o.cashback_total ?? 0)}
                                     </div>
                                   </div>
-                                  <div>
-                                    <div className="text-[11px] text-gray-500">
-                                      Cashback
-                                    </div>
-                                    <div className="font-semibold">
-                                      {currency}
-                                      {bd(o.cashback_total)}
-                                    </div>
-                                  </div>
+
                                   <div className="md:col-span-4 flex items-center md:justify-end gap-2">
                                     <StatusBadge status={status} />
                                     <span className="text-xs text-gray-500">
@@ -467,35 +487,39 @@ const AdminOrdersPage = () => {
 
                               {/* Items table */}
                               <div className="mt-5">
-                                <div className="text-xs font-semibold text-gray-600 mb-2">
-                                  Items
-                                </div>
+                                <div className="text-xs font-semibold text-gray-600 mb-2">Items</div>
                                 <div className="overflow-x-auto -mx-1">
                                   <table className="min-w-full text-sm">
                                     <thead>
-                                      <tr className="text-left text-gray-500">
-                                        <th className="px-1 py-2">Product</th>
-                                        <th className="px-1 py-2">Brand</th>
-                                        <th className="px-1 py-2">Variants</th>
-                                        <th className="px-1 py-2">Qty</th>
-                                        <th className="px-1 py-2">SP Each</th>
-                                        <th className="px-1 py-2">Delivery</th>
-                                        <th className="px-1 py-2">Cashback</th>
-                                        <th className="px-1 py-2">
-                                          Last Status
-                                        </th>
-                                      </tr>
+  <tr className="text-left text-gray-500">
+    <th className="px-1 py-2">Product</th>
+    <th className="px-1 py-2">Brand</th>
+    <th className="px-1 py-2">Variants</th>
+    <th className="px-1 py-2">Qty</th>
+    <th className="px-1 py-2">Seller MRP</th>
+    <th className="px-1 py-2">Seller SP</th>
+    <th className="px-1 py-2">MRP</th>
+    <th className="px-1 py-2">SP</th>
+    <th className="px-1 py-2">Line Total</th>
+    <th className="px-1 py-2">Last Status</th>
+  </tr>
                                     </thead>
+
                                     <tbody className="divide-y">
                                       {o.items?.map((it, i) => {
-                                        const img =
-                                          it?.sku?.thumbnail_img ||
-                                          assets.box_icon;
+                                        const img = it?.sku?.thumbnail_img || assets.box_icon;
+                                        const qty = Number(it?.quantity) || 0;
+                                        const lineTotal = (Number(it?.sp_each) || 0) * qty;
+
+                                        const variants = it?.variantValues
+                                          ? Object.entries(it.variantValues)
+                                              .filter(([, v]) => v != null && String(v).trim() !== "")
+                                              .map(([k, v]) => `${k}: ${v}`)
+                                              .join(", ")
+                                          : "";
+
                                         return (
-                                          <tr
-                                            key={it._id || i}
-                                            className="align-top"
-                                          >
+                                          <tr key={it._id || i} className="align-top">
                                             <td className="px-1 py-2 min-w-[220px]">
                                               <div className="flex gap-3">
                                                 <div className="rounded-xl border bg-white shadow-sm overflow-hidden w-12 h-12 grid place-items-center shrink-0">
@@ -512,8 +536,7 @@ const AdminOrdersPage = () => {
                                                     className="font-medium text-gray-900 leading-snug line-clamp-2"
                                                     title={it?.product?.name}
                                                   >
-                                                    {it?.product?.name ||
-                                                      `SKU ${it?.sku?._id}`}
+                                                    {it?.product?.name || `SKU ${it?.sku?._id}`}
                                                   </div>
                                                   <div className="text-[11px] text-gray-500">
                                                     SKU: {it?.sku?._id}
@@ -521,57 +544,49 @@ const AdminOrdersPage = () => {
                                                 </div>
                                               </div>
                                             </td>
-                                            <td className="px-1 py-2">
-                                              {it?.product?.brand?.name || "—"}
-                                            </td>
-                                            <td className="px-1 py-2">
-                                              <VariantChips
-                                                variantValues={
-                                                  it?.variantValues
-                                                }
-                                              />
-                                            </td>
-                                            <td className="px-1 py-2">
-                                              {bd(it?.quantity)}
+
+                                            <td className="px-1 py-2">{it?.product?.brand?.name || "—"}</td>
+                                            <td className="px-1 py-2">{variants || "—"}</td>
+                                            <td className="px-1 py-2">{bd(qty)}</td>
+
+                                            {/* Seller MRP & SP */}
+                                            <td className="px-1 py-2 whitespace-nowrap">
+                                              {currency}{bd(it?.sku?.seller_mrp)}
                                             </td>
                                             <td className="px-1 py-2 whitespace-nowrap">
-                                              {currency}
-                                              {bd(it?.sp_each)}
+                                              {currency}{bd(it?.sku?.seller_sp)}
+                                            </td>
+
+                                            {/* Ordered MRP & SP */}
+                                            <td className="px-1 py-2 whitespace-nowrap">
+                                              {currency}{bd(it?.mrp_each)}
                                             </td>
                                             <td className="px-1 py-2 whitespace-nowrap">
-                                              {currency}
-                                              {bd(it?.delivery_amount)}
+                                              {currency}{bd(it?.sp_each)}
                                             </td>
-                                            <td className="px-1 py-2 whitespace-nowrap">
-                                              {currency}
-                                              {bd(it?.cashback_amount)}
+
+                                            {/* Line total */}
+                                            <td className="px-1 py-2 whitespace-nowrap font-semibold">
+                                              {currency}{bd(lineTotal)}
                                             </td>
+
+                                            {/* Last Status stacked vertically */}
                                             <td className="px-1 py-2">
-                                              <div className="flex items-center gap-2">
-                                                <StatusBadge
-                                                  status={
-                                                    it?.lastStatus?.status
-                                                  }
-                                                />
+                                              <div className="flex flex-col items-start gap-1">
+                                                <StatusBadge status={it?.lastStatus?.status} />
                                                 <span className="text-[11px] text-gray-500">
                                                   {fmt(it?.lastStatus?.at)}
                                                 </span>
                                               </div>
-                                              {Array.isArray(
-                                                it?.resolvedStatusHistory
-                                              ) &&
-                                                it.resolvedStatusHistory
-                                                  .length > 1 && (
+
+                                              {Array.isArray(it?.resolvedStatusHistory) &&
+                                                it.resolvedStatusHistory.length > 1 && (
                                                   <details className="mt-1">
                                                     <summary className="text-[11px] text-gray-600 cursor-pointer">
                                                       Timeline
                                                     </summary>
                                                     <div className="mt-2">
-                                                      <ItemTimeline
-                                                        history={
-                                                          it.resolvedStatusHistory
-                                                        }
-                                                      />
+                                                      <ItemTimeline history={it.resolvedStatusHistory} />
                                                     </div>
                                                   </details>
                                                 )}
@@ -580,9 +595,11 @@ const AdminOrdersPage = () => {
                                         );
                                       })}
                                     </tbody>
+
                                   </table>
                                 </div>
                               </div>
+
                             </div>
                           </div>
                         </motion.div>

@@ -38,6 +38,6 @@ router.put("/deleteAddress/:addressId", auth, deleteAddress);
 router.post("/getProfileData", auth, getProfileData);
 router.put("/updateProfileData", auth, updateProfileData);
 
-router.post("/redisSetRecentAddress", redisSetRecentAddress);
+router.post("/redisSetRecentAddress",auth, redisSetRecentAddress);
 
 module.exports = router;

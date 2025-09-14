@@ -237,7 +237,7 @@ const MyOrders = () => {
                           <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
                             {created && <span>Placed: {fmtDate(created)}</span>}
                             <span className="hidden sm:inline">•</span>
-                            <span>Items: {items.length}</span>
+                            <span>Product(s): {items.length}</span>
                           </div>
                         </div>
                         <div className="flex items-end gap-4 md:gap-6">

@@ -6,7 +6,14 @@ const { Cashback, User, UserAddress } = require("../models/userModels");
 const { Product, ProductSku } = require("../models/productModels");
 
 const { setHash, getHash, delHash } = require("../config/redisClient");
+const EXPIRY_SEC = Number(process.env.EXPIRY_SEC);
 
+const CASHBACK_LINE_THRESHOLD = 500; // a line must be >= this to be eligible
+
+function n(val, fallback = 0) {
+  const x = Number(val);
+  return Number.isFinite(x) ? x : fallback;
+}
 
 const getOrderStatuses = async (req, res) => {
   try {
@@ -20,154 +27,418 @@ const getOrderStatuses = async (req, res) => {
   }
 };
 
+// const createOrder = async (req, res) => {
+//   const userId = req.user?.userId;
+//   if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+//   const EXPIRY_SEC = Number(process.env.EXPIRY_SEC);
+
+//   const {
+//     shipping_address_id,
+//     items = [],
+//     shipping_fee = 0,                 // 👈 FE sends this
+//     order_cashback = 0,               // 👈 FE sends this (appliedCashback)
+//     // subtotal_after_discounts,      // FE convenience value (not needed if we recompute)
+//     total_amount                      // FE grand total; we will validate against server calc
+//   } = req.body || {};
+
+//   console.log("req.body::", req.body)
+
+//   if (!shipping_address_id) return res.status(400).json({ error: "shipping_address_id required" });
+//   if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "items required" });
+
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+//     const createdStatus = await OrderStatus.findOne({ status: "CREATED" }).session(session).lean();
+//     if (!createdStatus?._id) throw new Error('OrderStatus "CREATED" not found');
+
+//     const skuIds = items.map((it) => it.sku_id);
+//     const skus = await ProductSku.find({ _id: { $in: skuIds } })
+//       .select("_id MRP SP initial_stock sold_stock product_id status")
+//       .session(session)
+//       .lean();
+
+//     const skuMap = new Map(skus.map((s) => [String(s._id), s]));
+
+//     // ✅ compute item_subtotal from server-trusted prices
+//     let item_subtotal = 0;
+//     const docs = items.map((it) => {
+//       const s = skuMap.get(String(it.sku_id));
+//       if (!s) throw new Error(`SKU not found: ${it.sku_id}`);
+//       const mrp = Number(s.MRP) || 0;
+//       let sp = Number(s.SP) || 0;
+//       if (sp > mrp) sp = mrp;
+
+//       const quantity = Number(it.quantity) || 1;
+//       item_subtotal += sp * quantity;
+
+//       return {
+//         order_id: null, // filled after we create order
+//         sku_id: it.sku_id,
+//         quantity,
+//         mrp_each: mrp,
+//         sp_each: sp,
+
+//         // 🔕 item-level fees are deprecated -> force 0
+//         cashback_amount: 0,
+//         delivery_amount: 0,
+
+//         item_status_history: [{ status_code: createdStatus._id }],
+//       };
+//     });
+
+//     const delivery_fee = Math.max(0, Number(shipping_fee) || 0);
+//     const order_cashback_num = Math.max(0, Number(order_cashback) || 0);
+
+//     // ✅ compute authoritative grand total server-side
+//     const computed_total = Math.max(0, item_subtotal + delivery_fee - order_cashback_num);
+
+//     // optional: guard client-provided total
+//     if (total_amount != null && Math.abs(Number(total_amount) - computed_total) > 0.01) {
+//       throw new Error("Total mismatch. Please refresh and try again.");
+//     }
+
+//     // 3) Create Order (with order-level fields)
+//     const [order] = await Order.create(
+//       [
+//         {
+//           user_id: userId,
+//           shipping_address_id,
+//           item_subtotal,
+//           delivery_fee,
+//           order_cashback: order_cashback_num,
+//           total_amount: computed_total,
+//         },
+//       ],
+//       { session }
+//     );
+
+//     // attach order_id now
+//     const docsWithOrderId = docs.map((d) => ({ ...d, order_id: order._id }));
+//     await OrderItem.insertMany(docsWithOrderId, { session });
+
+//     // stock updates unchanged...
+//     for (const it of items) {
+//       const qty = Number(it.quantity) || 1;
+//       const upd = await ProductSku.updateOne(
+//         {
+//           _id: it.sku_id,
+//           $expr: { $gte: [{ $subtract: ["$initial_stock", "$sold_stock"] }, qty] },
+//         },
+//         { $inc: { sold_stock: qty } },
+//         { session }
+//       );
+//       if (upd.modifiedCount !== 1) throw new Error(`Insufficient stock for SKU ${it.sku_id}`);
+//     }
+
+//     await ProductSku.updateMany(
+//       { _id: { $in: skuIds }, $expr: { $gte: ["$sold_stock", "$initial_stock"] } },
+//       { $set: { status: 0 } },
+//       { session }
+//     );
+
+//     const productIds = await ProductSku.distinct("product_id", { _id: { $in: skuIds } }).session(session);
+//     if (productIds.length) {
+//       const perProductStock = await ProductSku.aggregate([
+//         { $match: { product_id: { $in: productIds } } },
+//         {
+//           $project: {
+//             product_id: 1,
+//             remaining: { $subtract: ["$initial_stock", "$sold_stock"] },
+//           },
+//         },
+//         { $group: { _id: "$product_id", anyInStock: { $max: { $cond: [{ $gt: ["$remaining", 0] }, 1, 0] } } } },
+//       ]).session(session);
+
+//       const productsAllOut = perProductStock.filter((p) => p.anyInStock === 0).map((p) => p._id);
+//       if (productsAllOut.length) {
+//         await Product.updateMany({ _id: { $in: productsAllOut } }, { $set: { status: 0 } }, { session });
+//       }
+//     }
+
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     try { await delHash(`user:${userId}`, "cart"); } catch {}
+
+//     return res.status(201).json({
+//       ok: true,
+//       order: {
+//         _id: order._id,
+//         createdAt: order.createdAt,
+//         shipping_address_id: order.shipping_address_id,
+
+//         // expose order-level totals
+//         item_subtotal: order.item_subtotal,
+//         delivery_fee: order.delivery_fee,
+//         order_cashback: order.order_cashback,
+//         total_amount: order.total_amount,
+//       },
+//     });
+//   } catch (err) {
+//     await session.abortTransaction().catch(() => {});
+//     session.endSession();
+//     console.error("createOrder error:", err);
+//     return res.status(400).json({ error: err.message || "Server error" });
+//   }
+// };
+
+// const getUserOrders = async (req, res) => {
+//   const userId = req.user?.userId;
+//   if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+//   try {
+//     const orders = await Order.find({ user_id: userId })
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     if (orders.length === 0) return res.json({ ok: true, orders: [] });
+
+//     const orderIds = orders.map((o) => o._id);
+//     const items = await OrderItem.find({ order_id: { $in: orderIds } }).lean();
+
+//     const itemsByOrder = new Map(orderIds.map((id) => [String(id), []]));
+//     for (const it of items) {
+//       itemsByOrder.get(String(it.order_id))?.push({
+//         _id: it._id,
+//         sku_id: it.sku_id,
+//         quantity: it.quantity,
+//         mrp_each: it.mrp_each,
+//         sp_each: it.sp_each,
+//         cashback_amount: it.cashback_amount,
+//         delivery_amount: it.delivery_amount,
+//         createdAt: it.createdAt,
+//         item_status_history: it.item_status_history || [], // contains status_code ObjectIds
+//       });
+//     }
+
+//     const payload = orders.map((o) => ({
+//       _id: o._id,
+//       total_amount: o.total_amount,
+//       shipping_address_id: o.shipping_address_id,
+//       createdAt: o.createdAt,
+//       items: itemsByOrder.get(String(o._id)) || [],
+//     }));
+
+//     return res.json({ ok: true, orders: payload });
+//   } catch (err) {
+//     console.error("getUserOrders error:", err);
+//     return res.status(500).json({ error: "Server error" });
+//   }
+// };
+// controllers/order.controller.js
+
+
+// Your redis helpers
 const createOrder = async (req, res) => {
   const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { shipping_address_id, total_amount, items = [] } = req.body || {};
-  if (!shipping_address_id)
+  const {
+    shipping_address_id,
+    items = [],
+    shipping_fee = 0,           // FE suggested shipping (validated server-side)
+    order_cashback = 0,         // FE suggested applied cashback
+    total_amount,               // FE grand total (validated against server calc)
+  } = req.body || {};
+
+  if (!shipping_address_id) {
     return res.status(400).json({ error: "shipping_address_id required" });
-  if (!Array.isArray(items) || items.length === 0)
+  }
+  if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "items required" });
+  }
 
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    // 1) Resolve CREATED status
-    const createdStatus = await OrderStatus.findOne({ status: "CREATED" })
+    // 1) Status doc for CREATED
+    const createdStatus = await OrderStatus
+      .findOne({ status: "CREATED" })
       .session(session)
       .lean();
-    if (!createdStatus?._id) throw new Error('OrderStatus "CREATED" not found');
 
-    // 2) Load SKUs referenced by the order
-    const skuIds = items.map((it) => it.sku_id);
+    if (!createdStatus?._id) {
+      throw new Error('OrderStatus "CREATED" not found');
+    }
+
+    // 2) Fetch SKUs used in this order
+    const skuIds = items.map(it => it.sku_id);
     const skus = await ProductSku.find({ _id: { $in: skuIds } })
       .select("_id MRP SP initial_stock sold_stock product_id status")
       .session(session)
       .lean();
-    const skuMap = new Map(skus.map((s) => [String(s._id), s]));
 
-    // 3) Create Order
+    const skuMap = new Map(skus.map(s => [String(s._id), s]));
+
+    // 3) Build item docs using authoritative server prices
+    //    Also compute: per-line totals to know eligibility ceiling for cashback
+    let item_subtotal = 0;
+    let biggestEligibleLine = 0;
+
+    const orderItemDocs = items.map((it) => {
+      const s = skuMap.get(String(it.sku_id));
+      if (!s) throw new Error(`SKU not found: ${it.sku_id}`);
+
+      const mrp = n(s.MRP, 0);
+      let sp = Math.min(n(s.SP, 0), mrp);       // SP cannot exceed MRP
+      const quantity = Math.max(1, Math.floor(n(it.quantity, 1)));
+
+      const lineSubtotal = sp * quantity;
+      item_subtotal += lineSubtotal;
+
+      // For cashback eligibility: consider only lines >= threshold
+      if (lineSubtotal >= CASHBACK_LINE_THRESHOLD) {
+        biggestEligibleLine = Math.max(biggestEligibleLine, lineSubtotal);
+      }
+
+      return {
+        order_id: null, // set after Order creation
+        sku_id: it.sku_id,
+        quantity,
+        mrp_each: mrp,
+        sp_each: sp,
+        cashback_amount: 0,  // deprecated at item level
+        delivery_amount: 0,  // deprecated at item level
+        item_status_history: [{ status_code: createdStatus._id }],
+      };
+    });
+
+    // 4) Delivery & cashback input (non-negative)
+    const delivery_fee = Math.max(0, n(shipping_fee, 0));
+
+    // --- Cashback availability check (DB) ---
+    //   Prefer Redis cache if present; fallback to Mongo value to clamp the FE value.
+    const userKey = `user:${userId}`;
+    let cachedCashback = 0;
+    try {
+      const str = await getHash(userKey, "cashback");
+      if (str != null) cachedCashback = n(str, 0);
+    } catch (_) {}
+
+    let dbCashbackDoc = null;
+    if (!cachedCashback) {
+      dbCashbackDoc = await Cashback.findOne({ user_id: userId })
+        .session(session)
+        .lean();
+    }
+    const availableCashback = Math.max(0, cachedCashback || dbCashbackDoc?.amount || 0);
+
+    // Clamp requested cashback:
+    //  - cannot exceed available balance
+    //  - cannot exceed biggest eligible line
+    //  - cannot exceed subtotal
+    let order_cashback_num = Math.max(0, n(order_cashback, 0));
+    order_cashback_num = Math.min(
+      order_cashback_num,
+      availableCashback,
+      biggestEligibleLine,
+      item_subtotal
+    );
+
+    // 5) Compute grand total
+    const computed_total = Math.max(0, item_subtotal + delivery_fee - order_cashback_num);
+
+    // 6) Optional guard against FE total mismatch
+    if (total_amount != null && Math.abs(n(total_amount) - computed_total) > 0.01) {
+      throw new Error("Total mismatch. Please refresh and try again.");
+    }
+
+    // 7) Create Order
     const [order] = await Order.create(
       [
         {
           user_id: userId,
           shipping_address_id,
-          total_amount: Number(total_amount) || 0,
+          item_subtotal,
+          delivery_fee,
+          order_cashback: order_cashback_num,
+          total_amount: computed_total,
         },
       ],
       { session }
     );
 
-    // 4) Create OrderItems (validating prices from SKUs)
-    const docs = items.map((it) => {
-      const s = skuMap.get(String(it.sku_id));
-      if (!s) throw new Error(`SKU not found: ${it.sku_id}`);
-      const mrp = Number(s.MRP) || 0;
-      let sp = Number(s.SP) || 0;
-      if (sp > mrp) sp = mrp;
+    // 8) Create OrderItems with the order_id
+    const docsWithOrderId = orderItemDocs.map(d => ({ ...d, order_id: order._id }));
+    await OrderItem.insertMany(docsWithOrderId, { session });
 
-      return {
-        order_id: order._id,
-        sku_id: it.sku_id,
-        quantity: Number(it.quantity) || 1,
-        mrp_each: mrp,
-        sp_each: sp,
-        cashback_amount: Number(it.cashback_amount) || 0,
-        delivery_amount: Number(it.delivery_amount) || 0,
-        item_status_history: [{ status_code: createdStatus._id }],
-      };
-    });
-
-    await OrderItem.insertMany(docs, { session });
-
-    // 5) Decrement stock with an atomic guard (available >= qty)
+    // 9) Update stock per SKU (guarding remaining >= qty)
     for (const it of items) {
-      const qty = Number(it.quantity) || 1;
+      const qty = Math.max(1, Math.floor(n(it.quantity, 1)));
       const upd = await ProductSku.updateOne(
         {
           _id: it.sku_id,
-          $expr: {
-            $gte: [{ $subtract: ["$initial_stock", "$sold_stock"] }, qty],
-          },
+          $expr: { $gte: [{ $subtract: ["$initial_stock", "$sold_stock"] }, qty] },
         },
         { $inc: { sold_stock: qty } },
         { session }
       );
-      if (upd.modifiedCount !== 1)
+      if (upd.modifiedCount !== 1) {
         throw new Error(`Insufficient stock for SKU ${it.sku_id}`);
+      }
     }
 
-    // 6) Mark SKUs that are now out of stock -> status = 0
-    await ProductSku.updateMany(
-      {
-        _id: { $in: skuIds },
-        $expr: { $gte: ["$sold_stock", "$initial_stock"] },
-      },
-      { $set: { status: 0 } },
-      { session }
-    );
-
-    // 7) For affected products, set product.status=0 if ALL of its SKUs are out of stock
-    //    (i.e., no variant has remaining stock > 0)
-    const productIds = await ProductSku.distinct("product_id", {
-      _id: { $in: skuIds },
-    }).session(session);
+    // 10) If every SKU for a product is sold-out, mark product.status = 0
+    const productIds = await ProductSku
+      .distinct("product_id", { _id: { $in: skuIds } })
+      .session(session);
 
     if (productIds.length) {
       const perProductStock = await ProductSku.aggregate([
         { $match: { product_id: { $in: productIds } } },
-        {
-          $project: {
-            product_id: 1,
-            remaining: { $subtract: ["$initial_stock", "$sold_stock"] },
-            // If you have permanently disabled variants you want to ignore in availability,
-            // uncomment the line below and add it to $match:
-            // status: 1
-          },
-        },
-        {
-          $group: {
-            _id: "$product_id",
-            anyInStock: {
-              $max: { $cond: [{ $gt: ["$remaining", 0] }, 1, 0] },
-            },
-          },
-        },
+        { $project: { product_id: 1, remaining: { $subtract: ["$initial_stock", "$sold_stock"] } } },
+        { $group: { _id: "$product_id", anyInStock: { $max: { $cond: [{ $gt: ["$remaining", 0] }, 1, 0] } } } },
       ]).session(session);
 
-      // Only set to 0 when no variants have stock; do NOT set to 1 here.
-      const productsAllOut = perProductStock
-        .filter((p) => p.anyInStock === 0)
-        .map((p) => p._id);
-
-      if (productsAllOut.length) {
-        await Product.updateMany(
-          { _id: { $in: productsAllOut } },
-          { $set: { status: 0 } },
-          { session }
-        );
+      const allOut = perProductStock.filter(p => p.anyInStock === 0).map(p => p._id);
+      if (allOut.length) {
+        await Product.updateMany({ _id: { $in: allOut } }, { $set: { status: 0 } }, { session });
       }
     }
 
-    // (Optional) cashback updates...
+    // 11) Deduct applied cashback from Mongo + Redis
+    if (order_cashback_num > 0) {
+      // Mongo (transactional & authoritative)
+      await Cashback.updateOne(
+        { user_id: userId },
+        {
+          $inc: { amount: -order_cashback_num },
+          $set: { last_updated: new Date() },
+        },
+        { upsert: true, session }
+      );
+
+      // Redis (best effort)
+      try {
+        // Recalculate new balance using whichever source we had
+        const before = availableCashback;
+        const newBalance = Math.max(0, before - order_cashback_num);
+        await setHash(userKey, "cashback", String(newBalance), EXPIRY_SEC);
+      } catch (e) {
+        console.warn("Redis cashback sync failed:", e?.message || e);
+      }
+    }
+
+    // 12) Clear cart cache for this user (best effort)
+    try { await delHash(userKey, "cart"); } catch (_) {}
 
     await session.commitTransaction();
     session.endSession();
-
-    // 8) best-effort cart invalidation (outside transaction)
-    try {
-      await delHash(`user:${userId}`, "cart");
-    } catch {}
 
     return res.status(201).json({
       ok: true,
       order: {
         _id: order._id,
-        total_amount: order.total_amount,
-        shipping_address_id: order.shipping_address_id,
         createdAt: order.createdAt,
+        shipping_address_id: order.shipping_address_id,
+        item_subtotal: order.item_subtotal,
+        delivery_fee: order.delivery_fee,
+        order_cashback: order.order_cashback, // positive number (e.g., 50)
+        total_amount: order.total_amount,     // item_subtotal + delivery_fee - order_cashback
       },
     });
   } catch (err) {
@@ -183,36 +454,38 @@ const getUserOrders = async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    const orders = await Order.find({ user_id: userId })
-      .sort({ createdAt: -1 })
-      .lean();
-
+    const orders = await Order.find({ user_id: userId }).sort({ createdAt: -1 }).lean();
     if (orders.length === 0) return res.json({ ok: true, orders: [] });
 
     const orderIds = orders.map((o) => o._id);
     const items = await OrderItem.find({ order_id: { $in: orderIds } }).lean();
 
-    const itemsByOrder = new Map(orderIds.map((id) => [String(id), []]));
+    const byOrder = new Map(orderIds.map((id) => [String(id), []]));
     for (const it of items) {
-      itemsByOrder.get(String(it.order_id))?.push({
+      byOrder.get(String(it.order_id))?.push({
         _id: it._id,
         sku_id: it.sku_id,
         quantity: it.quantity,
         mrp_each: it.mrp_each,
         sp_each: it.sp_each,
-        cashback_amount: it.cashback_amount,
-        delivery_amount: it.delivery_amount,
+        // deprecated fields left out on purpose (they’re always 0 now)
+        item_status_history: it.item_status_history || [],
         createdAt: it.createdAt,
-        item_status_history: it.item_status_history || [], // contains status_code ObjectIds
       });
     }
 
     const payload = orders.map((o) => ({
       _id: o._id,
-      total_amount: o.total_amount,
-      shipping_address_id: o.shipping_address_id,
       createdAt: o.createdAt,
-      items: itemsByOrder.get(String(o._id)) || [],
+      shipping_address_id: o.shipping_address_id,
+
+      // 🔶 order-level monetarys
+      item_subtotal: o.item_subtotal,
+      delivery_fee: o.delivery_fee,
+      order_cashback: o.order_cashback,
+      total_amount: o.total_amount,
+
+      items: byOrder.get(String(o._id)) || [],
     }));
 
     return res.json({ ok: true, orders: payload });
@@ -768,16 +1041,17 @@ const getAdminOrders = async (req, res) => {
               },
             },
 
-            // project item view
+            // project item view (ADD seller prices under sku)
             {
               $project: {
                 _id: 1,
                 sku_id: 1,
                 quantity: 1,
-                mrp_each: 1,
-                sp_each: 1,
+                mrp_each: 1,   // captured at order time
+                sp_each: 1,    // captured at order time
                 cashback_amount: 1,
                 delivery_amount: 1,
+
                 product: {
                   _id: "$product._id",
                   name: "$product.name",
@@ -786,6 +1060,10 @@ const getAdminOrders = async (req, res) => {
                 sku: {
                   _id: "$sku._id",
                   thumbnail_img: "$sku.thumbnail_img",
+
+                  // 👇 add these
+                  seller_mrp: "$sku.seller_mrp",
+                  seller_sp: "$sku.seller_sp",
                 },
                 variantValues: "$variant_name_values",
                 resolvedStatusHistory: "$resolved_status_history",
@@ -797,6 +1075,7 @@ const getAdminOrders = async (req, res) => {
                 },
               },
             },
+
 
             // optional: filter by sellerId at the item level
             ...(sellerId
@@ -833,18 +1112,28 @@ const getAdminOrders = async (req, res) => {
       // rollups at the order level (based on items array)
       {
         $addFields: {
-          item_subtotal: {
-            $sum: {
-              $map: {
-                input: "$items",
-                as: "it",
-                in: { $multiply: ["$$it.sp_each", "$$it.quantity"] },
-              },
-            },
-          },
+
           item_quantity_total: { $sum: "$items.quantity" },
-          delivery_total: { $sum: "$items.delivery_amount" },
-          cashback_total: { $sum: "$items.cashback_amount" },
+          delivery_total: {
+            $ifNull: ["$delivery_fee", {
+              $sum: {
+                $map: { input: "$items", as: "it", in: { $ifNull: ["$$it.delivery_amount", 0] } }
+              }
+            }]
+          },
+          cashback_total: {
+            $ifNull: ["$order_cashback", {
+              $sum: {
+                $map: { input: "$items", as: "it", in: { $ifNull: ["$$it.cashback_amount", 0] } }
+              }
+            }]
+          },
+          item_subtotal: {
+            $ifNull: ["$item_subtotal", {
+              $sum: { $map: { input: "$items", as: "it", in: { $multiply: ["$$it.sp_each", "$$it.quantity"] } } }
+            }]
+          },
+
 
           // latest status across items (by time)
           last_item_status_entry: {
@@ -953,11 +1242,15 @@ const getAdminOrders = async (req, res) => {
           updatedAt: 1,
 
           // order monetarys
-          total_amount: 1, // from Order (authoritative if you store it as final)
-          item_subtotal: 1,
-          delivery_total: 1,
-          cashback_total: 1,
+          // total_amount: 1, // from Order (authoritative if you store it as final)
+          // item_subtotal: 1,
+          // delivery_total: 1,
+          // cashback_total: 1,
           item_quantity_total: 1,
+          total_amount: 1,
+          item_subtotal: 1,
+          delivery_total: 1,  
+          cashback_total: 1, 
 
           // user
           user: {
@@ -1571,12 +1864,26 @@ const getOrderDetails = async (req, res) => {
       // order-level rollups + payment_status (ANY PAID anywhere)
       {
         $addFields: {
-          item_subtotal: {
-            $sum: { $map: { input: "$items", as: "it", in: { $multiply: ["$$it.sp_each", "$$it.quantity"] } } },
+          // inside $addFields of both pipelines
+          delivery_total: {
+            $ifNull: ["$delivery_fee", {
+              $sum: {
+                $map: { input: "$items", as: "it", in: { $ifNull: ["$$it.delivery_amount", 0] } }
+              }
+            }]
           },
-          item_quantity_total: { $sum: "$items.quantity" },
-          delivery_total: { $sum: "$items.delivery_amount" },
-          cashback_total: { $sum: "$items.cashback_amount" },
+          cashback_total: {
+            $ifNull: ["$order_cashback", {
+              $sum: {
+                $map: { input: "$items", as: "it", in: { $ifNull: ["$$it.cashback_amount", 0] } }
+              }
+            }]
+          },
+          item_subtotal: {
+            $ifNull: ["$item_subtotal", {
+              $sum: { $map: { input: "$items", as: "it", in: { $multiply: ["$$it.sp_each", "$$it.quantity"] } } }
+            }]
+          },
 
           last_item_status_entry: {
             $reduce: {
@@ -1636,9 +1943,8 @@ const getOrderDetails = async (req, res) => {
           updatedAt: 1,
           total_amount: 1,
           item_subtotal: 1,
-          delivery_total: 1,
-          cashback_total: 1,
-          item_quantity_total: 1,
+          delivery_total: 1,  
+          cashback_total: 1, 
           payment_status: 1,
           user: { _id: "$user._id", full_name: "$user.full_name", email: "$user.email", phone_number: "$user.phone_number" },
           shippingAddress: {

@@ -336,28 +336,59 @@ export default function OrderDetailsPage() {
   }, [orderId]);
 
   // totals
+  // const totals = useMemo(() => {
+  //   if (!order) return { items: 0, subtotal: 0, delivery: 0, cashback: 0, grand: 0 };
+  //   const items =
+  //     order?.item_quantity_total ??
+  //     (order?.items || []).reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+  //   const subtotal =
+  //     order?.item_subtotal ??
+  //     (order?.items || []).reduce(
+  //       (s, it) => s + (Number(it.sp_each) || 0) * (Number(it.quantity) || 0),
+  //       0
+  //     );
+  //   const delivery =
+  //     order?.delivery_total ??
+  //     (order?.items || []).reduce((s, it) => s + (Number(it.delivery_amount) || 0), 0);
+  //   const cashback =
+  //     order?.cashback_total ??
+  //     (order?.items || []).reduce(
+  //       (s, it) => s + (Number(it.cashback_amount) || 0),
+  //       0
+  //     );
+  //   const grand = order?.total_amount ?? subtotal + delivery - cashback;
+  //   return { items, subtotal, delivery, cashback, grand };
+  // }, [order]);
+
   const totals = useMemo(() => {
     if (!order) return { items: 0, subtotal: 0, delivery: 0, cashback: 0, grand: 0 };
-    const items =
+
+    const itemsCount =
       order?.item_quantity_total ??
       (order?.items || []).reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+
     const subtotal =
       order?.item_subtotal ??
       (order?.items || []).reduce(
         (s, it) => s + (Number(it.sp_each) || 0) * (Number(it.quantity) || 0),
         0
       );
+
+    // ✅ prefer order-level; fallback to legacy sums if needed
     const delivery =
+      order?.delivery_fee ??
       order?.delivery_total ??
       (order?.items || []).reduce((s, it) => s + (Number(it.delivery_amount) || 0), 0);
+
     const cashback =
+      order?.order_cashback ??
       order?.cashback_total ??
-      (order?.items || []).reduce(
-        (s, it) => s + (Number(it.cashback_amount) || 0),
-        0
-      );
-    const grand = order?.total_amount ?? subtotal + delivery - cashback;
-    return { items, subtotal, delivery, cashback, grand };
+      (order?.items || []).reduce((s, it) => s + (Number(it.cashback_amount) || 0), 0);
+
+    const grand =
+      order?.total_amount ?? Math.max(0, subtotal + (delivery || 0) - (cashback || 0));
+
+    return { items: itemsCount, subtotal, delivery, cashback, grand };
   }, [order]);
 
   // Payment color
@@ -379,11 +410,7 @@ export default function OrderDetailsPage() {
             className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2"
           >
             <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Order Details</h2>
-            {order && (
-              <div className="text-sm text-gray-600">
-                {totals.items} item{totals.items !== 1 ? "s" : ""}
-              </div>
-            )}
+        
           </motion.div>
 
           {order === null ? (
@@ -443,7 +470,7 @@ export default function OrderDetailsPage() {
                       <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
                         {order?.createdAt && <span>Placed: {fmtDateTime(order.createdAt)}</span>}
                         <span className="hidden sm:inline">•</span>
-                        <span>Items: {totals.items}</span>
+                        <span>Total Items: {totals.items}</span>
                       </div>
                     </div>
                   </div>
