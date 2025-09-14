@@ -27,7 +27,6 @@ export async function getServerSideProps(context) {
 }
 
 const Home = ({EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,EMAILJS_PUBLIC_KEY}) => {
-  const {userName}=useAppContext();
   return (
     <>
       <Navbar />

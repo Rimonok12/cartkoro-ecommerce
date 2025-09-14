@@ -8,6 +8,11 @@ import Sidebar from "@/components/admin/Sidebar";
 import Loading from "@/components/Loading";
 import api from "@/lib/axios";
 import { assets } from "@/assets/assets";
+import { essentialsOnLoad, requireB2BAdmin } from "@/lib/ssrHelper";
+
+export async function getServerSideProps(context) {
+  return requireB2BAdmin(context);
+}
 
 /* ============================ helpers ============================ */
 const bd = (n) =>

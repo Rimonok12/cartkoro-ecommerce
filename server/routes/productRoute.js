@@ -11,6 +11,7 @@ const {
   getAllProducts,
   getProductBySkuId,
   getAllProductsBySeller,
+  getAllProductsByAdmin,
   getHomeCategories,
 } = require("../controllers/productController");
 const {
@@ -48,6 +49,7 @@ router.get(
   allowRoles("seller"),
   getAllProductsBySeller
 );
+router.get("/getAllProductsByAdmin", auth, allowRoles("admin"), getAllProductsByAdmin)
 router.get("/getHomeCategories", getHomeCategories);
 
 module.exports = router;

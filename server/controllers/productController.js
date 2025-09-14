@@ -73,71 +73,168 @@ const getCategories = async (_req, res) => {
   }
 };
 
+// const getHomeCategories = async (_req, res) => {
+//   try {
+//     // 1) Fetch all categories
+//     const all = await Category.find({}, { _id: 1, name: 1, level: 1 }).lean();
+
+//     // Children are those where level != _id
+//     const children = all.filter((c) => String(c.level) !== String(c._id));
+
+//     const childIds = children.map((c) => c._id);
+
+//     // 2) Fetch active products under these children
+//     const products = await Product.find({
+//       status: 1,
+//       category_id: { $in: childIds },
+//     })
+//       .select("_id category_id createdAt")
+//       .lean();
+
+//     const productIds = products.map((p) => p._id);
+
+//     // 3) Fetch SKUs (oldest first)
+//     const skus = await ProductSku.find({
+//       product_id: { $in: productIds },
+//     })
+//       .select("_id product_id thumbnail_img status createdAt")
+//       .sort({ createdAt: 1 })
+//       .lean();
+
+//     // 4) First ACTIVE sku per product
+//     const firstActiveSkuByProduct = {};
+//     for (const sku of skus) {
+//       const pid = String(sku.product_id);
+//       if (!firstActiveSkuByProduct[pid] && sku.status === 1) {
+//         firstActiveSkuByProduct[pid] = sku;
+//       }
+//     }
+
+//     // 5) Representative SKU per child category (oldest product that has active sku)
+//     const productsSorted = [...products].sort(
+//       (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+//     );
+
+//     const repSkuByCategory = {};
+//     for (const p of productsSorted) {
+//       const sku = firstActiveSkuByProduct[String(p._id)];
+//       if (!sku) continue;
+//       const catId = String(p.category_id);
+//       if (!repSkuByCategory[catId]) {
+//         repSkuByCategory[catId] = sku;
+//       }
+//     }
+
+//     // 6) Final result: only children
+//     const result = children.map((c) => {
+//       const sku = repSkuByCategory[String(c._id)];
+//       return {
+//         _id: c._id,
+//         name: c.name,
+//         sku_id: sku?._id || null,
+//         thumbnail_img: sku?.thumbnail_img || null,
+//       };
+//     });
+
+//     // Optional: sort alphabetically
+//     result.sort((a, b) => a.name.localeCompare(b.name));
+
+//     return res.json(result);
+//   } catch (err) {
+//     console.error("getHomeCategories error", err);
+//     return res.status(500).json({ message: err.message });
+//   }
+// };
 const getHomeCategories = async (_req, res) => {
   try {
-    // 1) Fetch all categories
+    // 1) Pull all categories: parents & children
     const all = await Category.find({}, { _id: 1, name: 1, level: 1 }).lean();
 
-    // Children are those where level != _id
+    const parents = all.filter((c) => String(c.level) === String(c._id));
     const children = all.filter((c) => String(c.level) !== String(c._id));
 
+    // group children by parent (level)
+    const childrenByParent = new Map(); // parentId -> [childCat]
+    for (const ch of children) {
+      const pid = String(ch.level);
+      if (!childrenByParent.has(pid)) childrenByParent.set(pid, []);
+      childrenByParent.get(pid).push(ch);
+    }
+
+    // 2) For thumbnail: find representative (oldest) active SKU per child category
     const childIds = children.map((c) => c._id);
+    let repSkuByCategory = {};
 
-    // 2) Fetch active products under these children
-    const products = await Product.find({
-      status: 1,
-      category_id: { $in: childIds },
-    })
-      .select("_id category_id createdAt")
-      .lean();
+    if (childIds.length) {
+      // products under child categories
+      const products = await Product.find(
+        { status: 1, category_id: { $in: childIds } },
+        { _id: 1, category_id: 1, createdAt: 1 }
+      ).lean();
 
-    const productIds = products.map((p) => p._id);
+      const productIds = products.map((p) => p._id);
 
-    // 3) Fetch SKUs (oldest first)
-    const skus = await ProductSku.find({
-      product_id: { $in: productIds },
-    })
-      .select("_id product_id thumbnail_img status createdAt")
-      .sort({ createdAt: 1 })
-      .lean();
+      // skus for those products (oldest first in DB fetch)
+      const skus = await ProductSku.find(
+        { product_id: { $in: productIds } },
+        { _id: 1, product_id: 1, thumbnail_img: 1, status: 1, createdAt: 1 }
+      )
+        .sort({ createdAt: 1 })
+        .lean();
 
-    // 4) First ACTIVE sku per product
-    const firstActiveSkuByProduct = {};
-    for (const sku of skus) {
-      const pid = String(sku.product_id);
-      if (!firstActiveSkuByProduct[pid] && sku.status === 1) {
-        firstActiveSkuByProduct[pid] = sku;
+      // first ACTIVE SKU per product
+      const firstActiveSkuByProduct = {};
+      for (const sku of skus) {
+        const pid = String(sku.product_id);
+        if (!firstActiveSkuByProduct[pid] && sku.status === 1) {
+          firstActiveSkuByProduct[pid] = sku;
+        }
+      }
+
+      // choose the oldest product (that has an active sku) per category
+      const productsSorted = [...products].sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+      );
+
+      repSkuByCategory = {};
+      for (const p of productsSorted) {
+        const sku = firstActiveSkuByProduct[String(p._id)];
+        if (!sku) continue;
+        const catId = String(p.category_id);
+        if (!repSkuByCategory[catId]) {
+          repSkuByCategory[catId] = sku;
+        }
       }
     }
 
-    // 5) Representative SKU per child category (oldest product that has active sku)
-    const productsSorted = [...products].sort(
-      (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
-    );
+    // 3) Build final grouped shape
+    const result = parents
+      .map((parent) => {
+        const kids = (childrenByParent.get(String(parent._id)) || []).map(
+          (c) => {
+            const sku = repSkuByCategory[String(c._id)];
+            return {
+              _id: c._id,
+              name: c.name,
+              sku_id: sku?._id || null,
+              thumbnail_img: sku?.thumbnail_img || null,
+            };
+          }
+        );
 
-    const repSkuByCategory = {};
-    for (const p of productsSorted) {
-      const sku = firstActiveSkuByProduct[String(p._id)];
-      if (!sku) continue;
-      const catId = String(p.category_id);
-      if (!repSkuByCategory[catId]) {
-        repSkuByCategory[catId] = sku;
-      }
-    }
+        // sort children alphabetically (optional)
+        kids.sort((a, b) => a.name.localeCompare(b.name));
 
-    // 6) Final result: only children
-    const result = children.map((c) => {
-      const sku = repSkuByCategory[String(c._id)];
-      return {
-        _id: c._id,
-        name: c.name,
-        sku_id: sku?._id || null,
-        thumbnail_img: sku?.thumbnail_img || null,
-      };
-    });
-
-    // Optional: sort alphabetically
-    result.sort((a, b) => a.name.localeCompare(b.name));
+        return {
+          _id: parent._id,
+          name: parent.name,
+          children: kids,
+        };
+      })
+      // optional: only include parents that actually have children
+      .filter((p) => p.children.length > 0)
+      // optional: sort parents alphabetically
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return res.json(result);
   } catch (err) {
@@ -623,6 +720,112 @@ const getAllProductsBySeller = async (req, res) => {
   }
 };
 
+const getAllProductsByAdmin = async (req, res) => {
+  try {
+    const { categoryId } = req.query;
+
+    // --- category filter (root includes children)
+    let categoryIds = [];
+    if (categoryId) {
+      const cat = await Category.findById(categoryId).lean();
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+
+      categoryIds = [cat._id];
+      // root → include direct children
+      if (String(cat.level) === String(cat._id)) {
+        const children = await Category.find(
+          { level: cat._id, _id: { $ne: cat._id } },
+          { _id: 1 }
+        ).lean();
+        categoryIds.push(...children.map((c) => c._id));
+      }
+    }
+
+    // --- all active products (regardless of seller)
+    const query = { status: 1 };
+    if (categoryIds.length) query.category_id = { $in: categoryIds };
+
+    const products = await Product.find(query)
+      .populate("category_id", "name")
+      .populate("userId", "full_name email phone_number") // ✅ seller info
+      .select("_id name category_id userId createdAt")
+      .lean();
+
+    if (!products.length) return res.json([]);
+
+    const productIds = products.map((p) => p._id);
+
+    // --- get SKUs for all products
+    const skus = await ProductSku.find({ product_id: { $in: productIds } })
+      .select(
+        "_id product_id seller_mrp seller_sp variant_values thumbnail_img status createdAt initial_stock sold_stock"
+      )
+      .lean();
+
+    // --- latest active SKU per product
+    const latestActiveSkuMap = new Map();
+    for (const sku of skus) {
+      if (sku.status !== 1) continue;
+      const pid = String(sku.product_id);
+      const current = latestActiveSkuMap.get(pid);
+      if (!current || new Date(sku.createdAt) > new Date(current.createdAt)) {
+        latestActiveSkuMap.set(pid, sku);
+      }
+    }
+
+    // --- Build rows
+    const rows = [];
+    for (const p of products) {
+      const sku = latestActiveSkuMap.get(String(p._id));
+      if (!sku) continue;
+
+      const preview_variants = await resolveVariantNames(
+        p.category_id?._id || p.category_id,
+        sku.variant_values || {}
+      );
+
+      rows.push({
+        name: p.name,
+        category_name: p.category_id?.name || null,
+        seller: p.userId
+          ? {
+              id: p.userId._id,
+              name: p.userId.full_name,
+              email: p.userId.email,
+              phone: p.userId.phone_number,
+            }
+          : null,
+        sku_id: sku._id,
+        thumbnail_img: sku.thumbnail_img || null,
+        preview_variants,
+        product_created_at: p.createdAt,
+        sku_created_at: sku.createdAt,
+
+        // seller-provided prices
+        seller_mrp: sku.seller_mrp,
+        seller_sp: sku.seller_sp,
+
+        // stock
+        initial_stock: sku.initial_stock,
+        sold_stock: sku.sold_stock,
+      });
+    }
+
+    // --- sort newest first
+    rows.sort((a, b) => {
+      const ta = new Date(a.product_created_at ?? a.sku_created_at ?? 0).getTime();
+      const tb = new Date(b.product_created_at ?? b.sku_created_at ?? 0).getTime();
+      return tb - ta;
+    });
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("getAllProductsByAdmin error", err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+
 module.exports = {
   createCategory,
   getCategories,
@@ -634,5 +837,6 @@ module.exports = {
   getAllProducts,
   getProductBySkuId,
   getAllProductsBySeller,
+  getAllProductsByAdmin,
   getHomeCategories,
 };

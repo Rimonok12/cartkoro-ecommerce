@@ -7,11 +7,11 @@ export default async function handler(req, res) {
     if (categoryId) {
       url = `${
         process.env.NODE_HOST
-      }/api/product/getAllProductsBySeller?categoryId=${encodeURIComponent(
+      }/api/product/getAllProductsByAdmin?categoryId=${encodeURIComponent(
         categoryId
       )}`;
     } else {
-      url = `${process.env.NODE_HOST}/api/product/getAllProductsBySeller`;
+      url = `${process.env.NODE_HOST}/api/product/getAllProductsByAdmin`;
     }
 
     const response = await fetch(url, {

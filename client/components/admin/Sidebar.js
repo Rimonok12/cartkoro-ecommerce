@@ -23,6 +23,11 @@ const SideBar = () => {
       path: "/admin/create-margin",
       icon: assets.product_list_icon,
     },
+    {
+      name: "Product List",
+      path: "/admin/product-list",
+      icon: assets.product_list_icon,
+    },
     { name: "Orders", path: "/admin/orders", icon: assets.order_icon },
   ];
 
