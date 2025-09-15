@@ -35,6 +35,16 @@ const getVar = (v, k) => {
   return v[k] ?? v[lower] ?? v[cap];
 };
 
+const normKey = (k) => (k ? String(k).toLowerCase() : k);
+const getValCI = (obj = {}, k) => {
+  const nk = normKey(k);
+  for (const [kk, vv] of Object.entries(obj)) {
+    if (normKey(kk) === nk) return vv;
+  }
+  return undefined;
+};
+const eqVal = (a, b) => String(a) === String(b); // tolerate "128" vs 128
+
 
 /**
  * Parse variant metadata coming from /api/product/getVariants/:categoryId
@@ -301,12 +311,7 @@ export default function Product() {
       const v = s?.variant_values || {};
       return Object.entries(sel).every(([k, val]) => {
         if (val == null) return true;
-        // normalize both sides
-        const wantedKey = normalizeKey(k);
-        const matchVal = Object.entries(v).find(
-          ([vk]) => normalizeKey(vk) === wantedKey
-        )?.[1];
-        return matchVal === val;
+        return eqVal(getValCI(v, k), val);
       });
     });
 
@@ -317,13 +322,54 @@ export default function Product() {
 
 
 
+
+  // const onPickVariant = (patch) => {
+  //   if (!selectedSku) return;
+  //   const cur = selectedSku.variant_values || {};
+  //   const nextSel = { ...cur, ...patch };
+
+  //   // Select even if OOS (so users can view that variant), buttons will handle disabling.
+  //   const sku = findSku(nextSel, { allowOOS: true });
+  //   if (sku) {
+  //     setSelectedSku(sku);
+  //     setMainImage(sku.thumbnail_img || mainImage);
+  //     router.replace(
+  //       { pathname: router.pathname, query: { skuId: sku._id } },
+  //       undefined,
+  //       { shallow: true }
+  //     );
+  //   }
+  // };
+
+  // const optionHasStock = (key, value) => {
+  //   const cur = selectedSku?.variant_values || {};
+  //   const sel = { ...cur, [key]: value };
+  //   return !!findSku(sel, { allowOOS: false });
+  // };
   const onPickVariant = (patch) => {
     if (!selectedSku) return;
+
     const cur = selectedSku.variant_values || {};
     const nextSel = { ...cur, ...patch };
 
-    // Select even if OOS (so users can view that variant), buttons will handle disabling.
-    const sku = findSku(nextSel, { allowOOS: true });
+    // 1) Try exact match (respecting all currently selected keys)
+    let sku = findSku(nextSel, { allowOOS: true });
+
+    // 2) If no exact match, relax to "any SKU with just this changed key"
+    if (!sku) {
+      const [changedKey, changedVal] = Object.entries(patch)[0] || [];
+      if (changedKey != null) {
+        // Prefer in-stock among those with the changed key, else first
+        const pool = skus.filter(
+          (s) => eqVal(getValCI(s?.variant_values, changedKey), changedVal)
+        );
+        sku =
+          pool.find((s) => Number(s?.left_stock ?? 0) > 0) ||
+          pool[0] ||
+          null;
+      }
+    }
+
     if (sku) {
       setSelectedSku(sku);
       setMainImage(sku.thumbnail_img || mainImage);
@@ -338,15 +384,16 @@ export default function Product() {
   // const optionHasStock = (key, value) => {
   //   const cur = selectedSku?.variant_values || {};
   //   const sel = { ...cur, [key]: value };
-  //   return !!findSku(sel, { allowOOS: false });
+  //   const sku = findSku(sel, { allowOOS: true });
+  //   return !!(sku && Number(sku.left_stock ?? 0) > 0);
   // };
-
   const optionHasStock = (key, value) => {
     const cur = selectedSku?.variant_values || {};
     const sel = { ...cur, [key]: value };
     const sku = findSku(sel, { allowOOS: true });
     return !!(sku && Number(sku.left_stock ?? 0) > 0);
   };
+
 
 
 
@@ -499,7 +546,9 @@ export default function Product() {
             {/* ========== dynamic selectors (API-driven) ========== */}
             {variantKeys?.length > 0 && (
               <div className="space-y-6">
-                {variantKeys.map((key) => {
+                {[...variantKeys]
+                  .sort((a, b) => (normKey(a) === "color" ? -1 : normKey(b) === "color" ? 1 : 0))
+                  .map((key) => {
                   // helper
                   const uniq = (xs) => [...new Set(xs.filter(Boolean))];
 
