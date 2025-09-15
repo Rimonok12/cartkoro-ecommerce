@@ -294,15 +294,27 @@ export default function Product() {
   //   if (inStock) return inStock;
   //   return opts.allowOOS ? matches[0] || null : null;
   // };
+  const normalizeKey = (k) => k?.toLowerCase?.();
+
   const findSku = (sel, opts = { allowOOS: false }) => {
     const matches = skus.filter((s) => {
       const v = s?.variant_values || {};
-      return Object.entries(sel).every(([k, val]) => val == null || getVar(v, k) === val);
+      return Object.entries(sel).every(([k, val]) => {
+        if (val == null) return true;
+        // normalize both sides
+        const wantedKey = normalizeKey(k);
+        const matchVal = Object.entries(v).find(
+          ([vk]) => normalizeKey(vk) === wantedKey
+        )?.[1];
+        return matchVal === val;
+      });
     });
+
     const inStock = matches.find((m) => Number(m?.left_stock ?? 0) > 0);
     if (inStock) return inStock;
     return opts.allowOOS ? matches[0] || null : null;
   };
+
 
 
   const onPickVariant = (patch) => {
@@ -332,12 +344,10 @@ export default function Product() {
   const optionHasStock = (key, value) => {
     const cur = selectedSku?.variant_values || {};
     const sel = { ...cur, [key]: value };
-    const match = skus.find((s) => {
-      const v = s?.variant_values || {};
-      return Object.entries(sel).every(([k, val]) => val == null || getVar(v, k) === val);
-    });
-    return !!(match && Number(match.left_stock ?? 0) > 0);
+    const sku = findSku(sel, { allowOOS: true });
+    return !!(sku && Number(sku.left_stock ?? 0) > 0);
   };
+
 
 
   /* ------------- keep skuAdded synced with cart ------------- */
