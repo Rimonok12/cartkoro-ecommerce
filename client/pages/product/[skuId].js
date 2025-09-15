@@ -28,6 +28,14 @@ const capitalize = (s) =>
     ? s.charAt(0).toUpperCase() + s.slice(1)
     : s;
 
+const getVar = (v, k) => {
+  if (!v) return undefined;
+  const lower = k.toLowerCase();
+  const cap = k.charAt(0).toUpperCase() + k.slice(1);
+  return v[k] ?? v[lower] ?? v[cap];
+};
+
+
 /**
  * Parse variant metadata coming from /api/product/getVariants/:categoryId
  * and fall back to inferring from SKUs if needed.
@@ -275,17 +283,27 @@ export default function Product() {
 
   /* ------------- helpers to find/select SKUs (generic across arbitrary variant keys) ------------- */
   // Prefer an IN-STOCK match; if none and allowOOS=true, return first match (OOS allowed).
+  // const findSku = (sel, opts = { allowOOS: false }) => {
+  //   const matches = skus.filter((s) => {
+  //     const v = s?.variant_values || {};
+  //     return Object.entries(sel).every(
+  //       ([k, val]) => val == null || v[k] === val
+  //     );
+  //   });
+  //   const inStock = matches.find((m) => Number(m?.left_stock ?? 0) > 0);
+  //   if (inStock) return inStock;
+  //   return opts.allowOOS ? matches[0] || null : null;
+  // };
   const findSku = (sel, opts = { allowOOS: false }) => {
     const matches = skus.filter((s) => {
       const v = s?.variant_values || {};
-      return Object.entries(sel).every(
-        ([k, val]) => val == null || v[k] === val
-      );
+      return Object.entries(sel).every(([k, val]) => val == null || getVar(v, k) === val);
     });
     const inStock = matches.find((m) => Number(m?.left_stock ?? 0) > 0);
     if (inStock) return inStock;
     return opts.allowOOS ? matches[0] || null : null;
   };
+
 
   const onPickVariant = (patch) => {
     if (!selectedSku) return;
@@ -305,11 +323,22 @@ export default function Product() {
     }
   };
 
+  // const optionHasStock = (key, value) => {
+  //   const cur = selectedSku?.variant_values || {};
+  //   const sel = { ...cur, [key]: value };
+  //   return !!findSku(sel, { allowOOS: false });
+  // };
+
   const optionHasStock = (key, value) => {
     const cur = selectedSku?.variant_values || {};
     const sel = { ...cur, [key]: value };
-    return !!findSku(sel, { allowOOS: false });
+    const match = skus.find((s) => {
+      const v = s?.variant_values || {};
+      return Object.entries(sel).every(([k, val]) => val == null || getVar(v, k) === val);
+    });
+    return !!(match && Number(match.left_stock ?? 0) > 0);
   };
+
 
   /* ------------- keep skuAdded synced with cart ------------- */
   useEffect(() => {
