@@ -28,6 +28,11 @@ const SideBar = () => {
       path: "/admin/product-list",
       icon: assets.product_list_icon,
     },
+    {
+      name: "Margin List",
+      path: "/admin/all-margins",
+      icon: assets.product_list_icon,
+    },
     { name: "Orders", path: "/admin/orders", icon: assets.order_icon },
   ];
 

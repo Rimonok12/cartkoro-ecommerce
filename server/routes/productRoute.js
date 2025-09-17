@@ -18,6 +18,7 @@ const {
   pendingProductsList,
   approvedProducts,
   upsertCategoryMargin,
+  listCategoryMargins
 } = require("../controllers/productModeration");
 const { auth, allowRoles } = require("../middleware/auth");
 
@@ -43,6 +44,8 @@ router.post(
   allowRoles("admin"),
   upsertCategoryMargin
 );
+router.get("/listCategoryMargins", auth, allowRoles("admin"), listCategoryMargins)
+
 router.get(
   "/getAllProductsBySeller",
   auth,
@@ -51,5 +54,6 @@ router.get(
 );
 router.get("/getAllProductsByAdmin", auth, allowRoles("admin"), getAllProductsByAdmin)
 router.get("/getHomeCategories", getHomeCategories);
+
 
 module.exports = router;

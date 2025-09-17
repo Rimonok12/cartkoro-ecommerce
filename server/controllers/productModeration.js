@@ -7,6 +7,7 @@ const {
   ProductSku,
   CategoryMargin,
 } = require("../models/productModels");
+
 const mongoose = require("mongoose");
 
 // POST /products/pending
@@ -121,36 +122,6 @@ const approvedProducts = async (req, res) => {
   }
 };
 
-// const upsertCategoryMargin = async (req, res) => {
-//   try {
-//     const { categoryId, spPercent, mrpPercent } = req.body;
-
-//     if (!categoryId) {
-//       return res.status(400).json({ message: "categoryId is required" });
-//     }
-
-//     const cat = await Category.findById(categoryId).lean();
-//     if (!cat) return res.status(404).json({ message: "Category not found" });
-
-//     const update = {
-//       ...(typeof spPercent === "number" ? { sp_percent: spPercent } : {}),
-//       ...(typeof mrpPercent === "number" ? { mrp_percent: mrpPercent } : {}),
-//     };
-
-//     const margin = await CategoryMargin.findOneAndUpdate(
-//       { category_id: categoryId },
-//       { $set: update },
-//       { new: true, upsert: true, runValidators: true }
-//     ).lean();
-
-//     return res.status(200).json({ message: "Margin upserted", data: margin });
-//   } catch (err) {
-//     console.error("upsertCategoryMargin error:", err);
-//     return res
-//       .status(500)
-//       .json({ message: "Internal error", error: err.message });
-//   }
-// };
 const upsertCategoryMargin = async (req, res) => {
   try {
     const { categoryId, spPercent, mrpPercent, priceMin, priceMax, isActive } =
@@ -212,8 +183,135 @@ const upsertCategoryMargin = async (req, res) => {
   }
 };
 
+
+const listCategoryMargins = async (req, res) => {
+  try {
+    const isActive = req.query.isActive ?? "";
+    const q = (req.query.q || "").trim().toLowerCase();
+    const sortBy = req.query.sortBy || "category_name";
+    const order = req.query.order === "asc" ? "asc" : "desc";
+    const dir = order === "asc" ? 1 : -1;
+
+    // 1) fetch all categories (only what we need)
+    const cats = await Category.find({}, { _id: 1, name: 1, level: 1 }).lean();
+
+    // maps
+    const byId = new Map(cats.map(c => [String(c._id), c]));
+    const childrenMap = new Map(cats.map(c => [String(c._id), []]));
+    for (const c of cats) {
+      const parentId = String(c.level);
+      const selfId = String(c._id);
+      if (parentId !== selfId) {
+        (childrenMap.get(parentId) || []).push(c);
+      }
+    }
+    const roots = cats.filter(c => String(c.level) === String(c._id));
+
+    // 2) fetch all margins and index by category_id
+    const marginFilter = {};
+    if (isActive === "true" || isActive === "false") {
+      marginFilter.is_active = isActive === "true";
+    }
+    const margins = await CategoryMargin.find(marginFilter).lean();
+    const marginByCatId = new Map(margins.map(m => [String(m.category_id), m]));
+
+    // 3) build result: one object per PARENT (root cat)
+    const nodes = roots.map(root => {
+      const rootMargin = marginByCatId.get(String(root._id)) || null;
+
+      // children rows
+      let childRows = (childrenMap.get(String(root._id)) || []).map(ch => {
+        const m = marginByCatId.get(String(ch._id)) || null;
+        return {
+          category_id: ch._id,
+          category_name: ch.name,
+          parent_id: root._id,
+          parent_name: root.name,
+          // flatten margin fields (null-safe)
+          margin_id: m?._id || null,
+          sp_percent: m?.sp_percent ?? null,
+          mrp_percent: m?.mrp_percent ?? null,
+          price_min: m?.price_min ?? null,
+          price_max: m?.price_max ?? null,
+          is_active: m?.is_active ?? null,
+          createdAt: m?.createdAt ?? null,
+          updatedAt: m?.updatedAt ?? null,
+        };
+      });
+
+      // optional search (matches parent or any child)
+      if (q) {
+        const matchParent = root.name.toLowerCase().includes(q);
+        childRows = childRows.filter(r =>
+          matchParent ||
+          (r.category_name || "").toLowerCase().includes(q)
+        );
+        if (!matchParent && childRows.length === 0) {
+          // if search doesn’t hit parent or any child, drop this parent; handled below by filtering
+        }
+      }
+
+      // optional sort children by a margin field or by name
+      const val = (r, key) => {
+        switch (key) {
+          case "sp_percent":  return r.sp_percent ?? -Infinity;
+          case "mrp_percent": return r.mrp_percent ?? -Infinity;
+          case "price_min":   return r.price_min ?? -Infinity;
+          case "price_max":   return r.price_max ?? -Infinity;
+          case "category_name": default:
+            return (r.category_name || "").toLowerCase();
+        }
+      };
+      childRows.sort((a, b) => {
+        const av = val(a, sortBy);
+        const bv = val(b, sortBy);
+        if (typeof av === "string" && typeof bv === "string") {
+          return av.localeCompare(bv) * dir;
+        }
+        return (av - bv) * dir;
+      });
+
+      return {
+        parent_id: root._id,
+        parent_name: root.name,
+        // include parent’s own margin (if set)
+        parent_margin: rootMargin
+          ? {
+              margin_id: rootMargin._id,
+              sp_percent: rootMargin.sp_percent ?? null,
+              mrp_percent: rootMargin.mrp_percent ?? null,
+              price_min: rootMargin.price_min ?? null,
+              price_max: rootMargin.price_max ?? null,
+              is_active: rootMargin.is_active ?? null,
+              createdAt: rootMargin.createdAt ?? null,
+              updatedAt: rootMargin.updatedAt ?? null,
+            }
+          : null,
+        children: childRows,
+      };
+    });
+
+    // filter out parents with no matching children when q is provided
+    const data = q ? nodes.filter(n => n.children.length > 0 || n.parent_name.toLowerCase().includes(q)) : nodes;
+
+    // sort parents alphabetically
+    data.sort((a, b) => a.parent_name.localeCompare(b.parent_name));
+
+    return res.json({
+      message: "OK",
+      data,
+      totalParents: data.length,
+      filters: { isActive, q, sortBy, order },
+    });
+  } catch (err) {
+    console.error("listCategoryMarginsTree error:", err);
+    return res.status(500).json({ message: "Internal error", error: err.message });
+  }
+};
+
 module.exports = {
   pendingProductsList,
   approvedProducts,
   upsertCategoryMargin,
+  listCategoryMargins
 };
