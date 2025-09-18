@@ -69,6 +69,15 @@ const productSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    details: {
+      type: [
+        {
+          key: { type: String, required: true, trim: true },   // e.g. "Brand Color"
+          value: { type: String, required: true, trim: true }, // e.g. "White"
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true, versionKey: false }
 );
