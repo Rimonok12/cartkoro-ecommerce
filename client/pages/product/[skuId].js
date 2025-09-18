@@ -1482,7 +1482,7 @@ export default function Product() {
           <div className="mt-4">
             <hr className="bg-gray-200 my-8" />
             <h3 className="text-2xl font-semibold text-gray-800/90 mb-3">
-              Description
+              Product Description
             </h3>
             <p className="text-gray-700 leading-7">{productDesc}</p>
           </div>
