@@ -13,6 +13,7 @@
     "@aws-sdk/s3-request-presigner": "^3.864.0",
     "@clerk/nextjs": "^6.29.0",
     "@emailjs/browser": "^4.4.1",
+    "@heroicons/react": "^2.2.0",
     "axios": "^1.11.0",
     "framer-motion": "^12.23.12",
     "inngest": "^3.40.1",
