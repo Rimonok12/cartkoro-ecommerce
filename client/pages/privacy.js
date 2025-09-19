@@ -2,10 +2,19 @@
 "use client";
 
 import Head from "next/head";
+import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar";
+import { essentialsOnLoad } from "@/lib/ssrHelper";
 
+export async function getServerSideProps(context) {
+  const essentials = await essentialsOnLoad(context);
+  return { props: { ...essentials.props } };
+}
 export default function PrivacyPage() {
   return (
     <>
+      <Navbar />
+
       <Head>
         <title>Privacy Policy</title>
         <meta
@@ -76,6 +85,8 @@ export default function PrivacyPage() {
           </article>
         </div>
       </main>
+
+      <Footer />
     </>
   );
 }

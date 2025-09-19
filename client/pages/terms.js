@@ -2,10 +2,18 @@
 "use client";
 
 import Head from "next/head";
+import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar";
+import { essentialsOnLoad } from "@/lib/ssrHelper";
 
+export async function getServerSideProps(context) {
+  const essentials = await essentialsOnLoad(context);
+  return { props: { ...essentials.props } };
+}
 export default function TermsPage() {
   return (
     <>
+      <Navbar />
       <Head>
         <title>Terms of Use</title>
         <meta
@@ -60,11 +68,13 @@ export default function TermsPage() {
             <h2>7. Contact</h2>
             <p>
               Questions? Email{" "}
-              <a href="mailto:support@example.com">support@example.com</a>.
+              <a href="mailto:info@cartkoro.com">info@cartkoro.com</a>.
             </p>
           </article>
         </div>
       </main>
+
+      <Footer />
     </>
   );
 }
