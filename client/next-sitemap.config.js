@@ -1,5 +1,5 @@
 /** @type {import('next-sitemap').IConfig} */
-module.exports = {
+const nextSitemapConfig = {
   siteUrl: 'https://www.cartkoro.com',
   generateRobotsTxt: true, // generates robots.txt automatically
   sitemapSize: 5000,
@@ -18,3 +18,6 @@ module.exports = {
     ],
   },
 };
+
+export default nextSitemapConfig;
+
