@@ -44,8 +44,9 @@ export default function LoginPage() {
   return (
     <>
       <Navbar />
+      {/* <div className="login-page min-h-screen relative flex items-center justify-center px-4 overflow-hidden "> */}
+      <div className="login-page min-h-screen relative flex items-start justify-center px-4 overflow-hidden pt-24">
 
-      <div className="login-page min-h-screen relative flex items-center justify-center px-4 overflow-hidden">
         {/* Animated background layers */}
         <div aria-hidden className="mesh z-0" />
         <div aria-hidden className="orb o1 z-0" />
@@ -68,7 +69,7 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="p-6 pt-22 space-y-4">
+          <div className="p-6 pt-28 md:pt-36 space-y-4">
             {step === "phone" && (
               <PhoneLogin
                 defaultCode="+88"
