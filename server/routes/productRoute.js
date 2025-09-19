@@ -13,6 +13,7 @@ const {
   getAllProductsBySeller,
   getAllProductsByAdmin,
   getHomeCategories,
+  getAllFeaturedProducts
 } = require("../controllers/productController");
 const {
   pendingProductsList,
@@ -54,6 +55,8 @@ router.get(
 );
 router.get("/getAllProductsByAdmin", auth, allowRoles("admin"), getAllProductsByAdmin)
 router.get("/getHomeCategories", getHomeCategories);
+
+router.post("/getAllFeaturedProducts", getAllFeaturedProducts)
 
 
 module.exports = router;

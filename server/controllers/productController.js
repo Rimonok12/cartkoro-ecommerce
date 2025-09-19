@@ -716,6 +716,8 @@ const getProductBySkuId = async (req, res) => {
 
     const product = await Product.findById(sku.product_id)
       .populate("category_id", "name")
+      .populate("brandId", "name") 
+      .populate("userId", "full_name") 
       .select("-__v -createdAt -updatedAt")
       .lean();
     if (!product)
@@ -772,6 +774,15 @@ const getProductBySkuId = async (req, res) => {
           }))
       : [];
 
+    // brand (skip "other"/"others")
+    let brand_name = null;
+    if (product.brandId?.name) {
+      const brand = String(product.brandId.name).trim().toLowerCase();
+      if (brand !== "other" && brand !== "others") {
+        brand_name = product.brandId.name;
+      }
+    }
+
     return res.json({
       product_id: product._id,
       product_name: product.name,
@@ -779,12 +790,14 @@ const getProductBySkuId = async (req, res) => {
       product_status: product.status,
       category_id: product.category_id?._id || null,
       category_name: product.category_id?.name || null,
-      product_details, // 👈 added
+      brand_name,
+      seller_name: product.userId?.full_name || null,
+      product_details,
       main_sku,
       other_skus,
     });
   } catch (err) {
-    console.error("getProductBySku error", err);
+    console.error("getProductBySkuId error", err);
     return res.status(500).json({ message: err.message });
   }
 };
@@ -1019,6 +1032,80 @@ const getAllProductsByAdmin = async (req, res) => {
   }
 };
 
+const getAllFeaturedProducts = async (req, res) => {
+  try {
+    const { categoryId, productId } = req.body;
+
+    let categoryIds = [];
+    if (categoryId) {
+      // find the target category
+      const cat = await Category.findById(categoryId).lean();
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+
+      // if root category (level == self) → include children too
+      categoryIds = [cat._id];
+      if (String(cat.level) === String(cat._id)) {
+        const children = await Category.find(
+          { level: cat._id, _id: { $ne: cat._id } },
+          { _id: 1 }
+        ).lean();
+        categoryIds.push(...children.map((c) => c._id));
+      }
+    }
+
+    // fetch only active products
+    const query = { status: 1 };
+    if (categoryIds.length) query.category_id = { $in: categoryIds };
+
+    const products = await Product.find(query)
+      .populate("category_id", "name")
+      .lean();
+
+    const productIds = products.map((p) => p._id);
+
+    // fetch SKUs
+    const skus = await ProductSku.find({
+      product_id: { $in: productIds },
+    })
+      .select("_id product_id MRP SP thumbnail_img status createdAt")
+      .sort({ createdAt: 1 }) // oldest first
+      .lean();
+
+    // pick first ACTIVE sku per product
+    const firstActiveSkuMap = {};
+    skus.forEach((sku) => {
+      const pid = sku.product_id.toString();
+      if (!firstActiveSkuMap[pid] && sku.status === 1) {
+        firstActiveSkuMap[pid] = sku;
+      }
+    });
+
+    // build final result
+    const result = products
+      .filter((p) => String(p._id) !== String(productId)) // 🚨 exclude main product
+      .map((p) => {
+        const sku = firstActiveSkuMap[p._id.toString()];
+        if (!sku) return null; // exclude products without active sku
+        return {
+          name: p.name,
+          category_name: p.category_id?.name || null,
+          sku_id: sku._id,
+          thumbnail_img: sku.thumbnail_img,
+          mrp: sku.MRP,
+          selling_price: sku.SP,
+          visitUrl: `/product/${sku._id}`,
+        };
+      })
+      .filter(Boolean);
+
+    return res.json(result);
+  } catch (err) {
+    console.error("getAllFeaturedProducts error", err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+
 
 module.exports = {
   createCategory,
@@ -1033,4 +1120,5 @@ module.exports = {
   getAllProductsBySeller,
   getAllProductsByAdmin,
   getHomeCategories,
+  getAllFeaturedProducts
 };
