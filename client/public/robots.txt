@@ -1,0 +1,20 @@
+# robots.txt for https://www.cartkoro.com
+
+User-agent: *
+# Allow crawling of all important pages
+Allow: /
+
+# Block unnecessary or duplicate content
+Disallow: /cart
+Disallow: /login
+Disallow: /api/
+Disallow: /_next/
+Disallow: /static/
+Disallow: /server-sitemap.xml
+
+# Crawl delay (optional, uncomment if your server struggles with heavy crawling)
+# Crawl-delay: 10
+
+# Sitemap locations
+Sitemap: https://www.cartkoro.com/sitemap.xml
+Sitemap: https://www.cartkoro.com/server-sitemap.xml
