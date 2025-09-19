@@ -25,7 +25,7 @@ export default function App({ Component, pageProps }) {
         <meta property="og:description" content="Buy gadgets, electronics, and more online at CartKoro." />
         <meta property="og:url" content="https://www.cartkoro.com/" />
         <meta property="og:type" content="website" />
-        <link rel="icon" href="/1.png" />
+        <link rel="icon" href="/favico.png" />
       </Head>
 
       {/* Apply font + global text styles app-wide */}
