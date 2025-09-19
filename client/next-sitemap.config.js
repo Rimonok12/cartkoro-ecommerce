@@ -1,15 +1,35 @@
 /** @type {import('next-sitemap').IConfig} */
 const nextSitemapConfig = {
   siteUrl: 'https://www.cartkoro.com',
-  generateRobotsTxt: true, // generates robots.txt automatically
+  generateRobotsTxt: true,
   sitemapSize: 5000,
-  exclude: ['/cart', '/checkout', '/login', '/register', '/api/*'],
+  exclude: [
+    '/cart',
+    '/login',
+    '/register',
+    '/api/*',
+    '/admin',
+    '/seller',
+    '/useLaterFile',
+    '/order-details',
+    '/my-orders',
+  ],
   robotsTxtOptions: {
     policies: [
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/cart', '/checkout', '/login', '/register', '/api/'],
+        disallow: [
+          '/cart',
+          '/login',
+          '/register',
+          '/api/',
+          '/admin',
+          '/seller',
+          '/useLaterFile',
+          '/order-details',
+          '/my-orders',
+        ],
       },
     ],
     additionalSitemaps: [
@@ -20,4 +40,3 @@ const nextSitemapConfig = {
 };
 
 export default nextSitemapConfig;
-

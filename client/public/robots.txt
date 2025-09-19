@@ -2,10 +2,15 @@
 User-agent: *
 Allow: /
 Disallow: /cart
-Disallow: /checkout
 Disallow: /login
 Disallow: /register
 Disallow: /api/
+Disallow: /admin
+Disallow: /seller
+Disallow: /useLaterFile
+Disallow: /order-details
+Disallow: /my-orders
+
 
 # Host
 Host: https://www.cartkoro.com
