@@ -22,7 +22,7 @@ export default function App({ Component, pageProps }) {
         <link rel="canonical" href="https://www.cartkoro.com/" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta property="og:title" content="CartKoro Online Shop" />
-        <meta property="og:description" content="Buy gadgets, electronics, and more online at CartKoro." />
+        <meta property="og:description" content="Buy gadgets, electronics, cloths and more online at CartKoro." />
         <meta property="og:url" content="https://www.cartkoro.com/" />
         <meta property="og:type" content="website" />
         <link rel="icon" href="/favico.png" />

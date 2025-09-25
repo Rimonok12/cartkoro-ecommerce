@@ -10,6 +10,8 @@ const {
 
 const mongoose = require("mongoose");
 
+
+/* ======================= Seller Product Approval ======================= */
 // POST /products/pending
 // Body: { page?: 1, limit?: 20, search?: "" }
 // Lists all pending products (status: -2) for the logged-in user
@@ -122,6 +124,174 @@ const approvedProducts = async (req, res) => {
   }
 };
 
+/* ======================= CATEGORY ======================= */
+const createCategory = async (req, res) => {
+  try {
+    const { name, parentId } = req.body;
+
+    if (parentId) {
+      // child category -> level = parentId (must exist)
+      const parent = await Category.findById(parentId);
+      if (!parent)
+        return res.status(400).json({ message: "Parent category not found" });
+      const cat = await Category.create({ name, level: parentId });
+      return res.status(201).json(cat);
+    } else {
+      // root category -> level = self id
+      const cat = new Category({ name });
+      cat.level = cat._id;
+      await cat.save();
+      return res.status(201).json(cat);
+    }
+  } catch (err) {
+    return res.status(400).json({ message: err.message });
+  }
+};
+
+const getCategories = async (_req, res) => {
+  try {
+    // fetch only what we need
+    const all = await Category.find({}, { _id: 1, name: 1, level: 1 }).lean();
+
+    // map of children lists keyed by parentId (init empty arrays)
+    const childrenMap = new Map(all.map((c) => [String(c._id), []]));
+
+    // fill children for non-root nodes (root: level === _id)
+    for (const c of all) {
+      const parentId = String(c.level);
+      const selfId = String(c._id);
+      if (parentId !== selfId) {
+        (childrenMap.get(parentId) || []).push(c);
+      }
+    }
+
+    // build only roots with their direct children
+    const roots = all.filter((c) => String(c.level) === String(c._id));
+
+    // sort roots and children alphabetically (optional)
+    roots.sort((a, b) => a.name.localeCompare(b.name));
+    for (const [pid, arr] of childrenMap) {
+      arr.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    const result = roots.map((root) => ({
+      _id: root._id,
+      name: root.name,
+      children: (childrenMap.get(String(root._id)) || []).map((ch) => ({
+        _id: ch._id,
+        name: ch.name,
+      })),
+    }));
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+/* ======================= BRAND ======================= */
+const createBrand = async (req, res) => {
+  try {
+    let { categoryId, name } = req.body;
+
+    if (!categoryId || !name) {
+      return res
+        .status(400)
+        .json({ message: "categoryId and name are required" });
+    }
+
+    const cat = await Category.findById(categoryId).select("_id");
+    if (!cat) return res.status(404).json({ error: "Category not found" });
+
+    const brand = await Brand.create({
+      category_id: categoryId,
+      name: name.trim(),
+    });
+    return res.status(201).json(brand);
+  } catch (err) {
+    return res.status(400).json({ message: err.message });
+  }
+};
+
+const getBrands = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    if (!categoryId) {
+      return res.status(400).json({ message: "categoryId is required" });
+    }
+
+    const brands = await Brand.find(
+      { category_id: categoryId },
+      { _id: 1, name: 1, values: 1 } // only select required fields
+    ).lean();
+
+    // format response
+    const result = brands.map((v) => ({
+      brandId: v._id,
+      name: v.name,
+    }));
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+/* ======================= VARIANT ======================= */
+const createVariant = async (req, res) => {
+  try {
+    const { categoryId, name, values } = req.body;
+
+    if (!categoryId || !name) {
+      return res
+        .status(400)
+        .json({ message: "categoryId and name are required" });
+    }
+
+    const category = await Category.findById(categoryId);
+    if (!category)
+      return res.status(404).json({ message: "Category not found" });
+
+    const variant = await Variant.create({
+      category_id: category._id,
+      name: name.toLowerCase(),
+      values,
+    });
+
+    return res.status(201).json(variant);
+  } catch (err) {
+    return res.status(400).json({ message: err.message });
+  }
+};
+
+const getVariants = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    if (!categoryId) {
+      return res.status(400).json({ message: "categoryId is required" });
+    }
+
+    const variants = await Variant.find(
+      { category_id: categoryId },
+      { _id: 1, name: 1, values: 1 } // only select required fields
+    ).lean();
+
+    // format response
+    const result = variants.map((v) => ({
+      variantId: v._id,
+      name: v.name,
+      values: v.values,
+    }));
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+/* ======================= Categoryies-Margin ======================= */
 const upsertCategoryMargin = async (req, res) => {
   try {
     const { categoryId, spPercent, mrpPercent, priceMin, priceMax, isActive } =
@@ -182,7 +352,6 @@ const upsertCategoryMargin = async (req, res) => {
       .json({ message: "Internal error", error: err.message });
   }
 };
-
 
 const listCategoryMargins = async (req, res) => {
   try {
@@ -309,9 +478,16 @@ const listCategoryMargins = async (req, res) => {
   }
 };
 
+
 module.exports = {
   pendingProductsList,
   approvedProducts,
+  createCategory,
+  getCategories,
+  createBrand,
+  getBrands,
+  createVariant,
+  getVariants,
   upsertCategoryMargin,
-  listCategoryMargins
+  listCategoryMargins,
 };

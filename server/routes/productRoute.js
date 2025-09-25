@@ -1,12 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const {
-  createCategory,
-  getCategories,
-  createBrand,
-  getBrands,
-  createVariant,
-  getVariants,
   createProduct,
   getAllProducts,
   getProductBySkuId,
@@ -18,9 +12,19 @@ const {
 const {
   pendingProductsList,
   approvedProducts,
+  createCategory,
+  getCategories,
+  createBrand,
+  getBrands,
+  createVariant,
+  getVariants,
   upsertCategoryMargin,
   listCategoryMargins
 } = require("../controllers/productModeration");
+const { 
+  searchProducts, 
+  healthCheck 
+} = require("../controllers/searchController");
 const { auth, allowRoles } = require("../middleware/auth");
 
 router.post("/createCategory", auth, allowRoles("admin"), createCategory);
@@ -57,6 +61,10 @@ router.get("/getAllProductsByAdmin", auth, allowRoles("admin"), getAllProductsBy
 router.get("/getHomeCategories", getHomeCategories);
 
 router.post("/getAllFeaturedProducts", getAllFeaturedProducts)
+
+
+router.get("/health", healthCheck);
+router.get("/searchProducts", searchProducts);
 
 
 module.exports = router;

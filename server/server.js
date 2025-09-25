@@ -67,3 +67,38 @@ app.listen(PORT, () => {
 //     console.error("❌ Copy failed:", err.message);
 //   }
 // });
+
+
+
+
+// {
+//   "name": "server",
+//   "version": "1.0.0",
+//   "main": "index.js",
+//   "scripts": {
+//     "test": "echo \"Error: no test specified\" && exit 1"
+//   },
+//   "author": "",
+//   "license": "ISC",
+//   "description": "",
+//   "dependencies": {
+//     "axios": "^1.12.0",
+//     "bcrypt": "^6.0.0",
+//     "cookie-parser": "^1.4.7",
+//     "cors": "^2.8.5",
+//     "cross-fetch": "^4.1.0",
+//     "crypto": "^1.0.1",
+//     "dotenv": "^17.2.1",
+//     "express": "^5.1.0",
+//     "helmet": "^8.1.0",
+//     "ioredis": "^5.7.0",
+//     "jsonwebtoken": "^9.0.2",
+//     "meilisearch": "^0.53.0",
+//     "mongodb": "^6.20.0",
+//     "mongoose": "^8.17.0",
+//     "pg": "^8.16.3"
+//   }
+// }
+
+
+
