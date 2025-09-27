@@ -46,7 +46,7 @@ HOST_ADDR="${MEILI_HOST_ADDR:-127.0.0.1:7700}"
 
 echo "==> Bootstrapping Meilisearch ${MEILI_VERSION} (${ARCH})"
 if [ ! -f ./meilisearch ]; then
-  URL="https://github.com/meilisearch/meilisearch/releases/download/${MEILI_VERSION}/meilisearch-${ARCH}.tar.gz"
+  URL="https://github.com/meilisearch/meilisearch/releases/download/${MEILI_VERSION}/meilisearch-linux-x86_64.tar.gz"
   echo "Downloading ${URL}"
   curl -fsSL --retry 3 --retry-connrefused -o meili.tgz "$URL"
   tar -xzf meili.tgz meilisearch
