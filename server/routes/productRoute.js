@@ -22,8 +22,9 @@ const {
   listCategoryMargins
 } = require("../controllers/productModeration");
 const { 
-  searchProducts, 
-  healthCheck 
+  healthCheck,
+  seedMeili,
+  searchProducts
 } = require("../controllers/searchController");
 const { auth, allowRoles } = require("../middleware/auth");
 
@@ -64,6 +65,7 @@ router.post("/getAllFeaturedProducts", getAllFeaturedProducts)
 
 
 router.get("/health", healthCheck);
+router.get("/seedMeili", seedMeili);
 router.get("/searchProducts", searchProducts);
 
 
