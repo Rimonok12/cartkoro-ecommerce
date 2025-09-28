@@ -3,3 +3,4 @@ node_modules/
 /server/meilisearch
 /data.ms
 /.meili_data/
+server/.meili_data/

@@ -1,8 +1,16 @@
 // server/scripts/indexer.js
 
+// terminal 0(if not installed in server folder): curl -L https://install.meilisearch.com | sh
 // terminal 1: node server
 // terminal 2: ./meilisearch --master-key "4f39a098a1205b949354258089e3a982"
 // terminal 3: npm run index:seed
+
+// some chatgpt suggestion for locally
+// cd server
+// chmod +x ./local-start.sh
+// npm run start:local
+// # Or seed manually:
+// npm run index:seed
 
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "..", "env.production") });
