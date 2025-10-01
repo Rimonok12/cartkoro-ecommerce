@@ -559,6 +559,69 @@ const updateProfileData = async (req, res) => {
   }
 };
 
+// --- Admin: List users with search & pagination ---
+const listUsersForAdmin = async (req, res) => {
+  try {
+    // Query params
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const q = (req.query.q || "").trim();
+    const status = req.query.status; // e.g. "1" or "0"
+    const role = (req.query.role || "").trim(); // one of: super_admin | admin | seller
+
+    const filter = {};
+    if (q) {
+      const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.$or = [
+        { full_name: rx },
+        { email: rx },
+        { phone_number: rx },
+        { referral_code: rx },
+      ];
+    }
+    if (status !== undefined && status !== "") {
+      const n = Number(status);
+      if (!Number.isNaN(n)) filter.status = n;
+    }
+    if (role) {
+      if (role === "super_admin") filter.is_super_admin = true;
+      else if (role === "admin") filter.is_admin = true;
+      else if (role === "seller") filter.is_seller = true;
+    }
+
+    const projection = {
+      full_name: 1,
+      email: 1,
+      phone_number: 1,
+      referral_code: 1,
+      is_super_admin: 1,
+      is_admin: 1,
+      is_seller: 1,
+      status: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      profile_pic: 1,
+    };
+
+    const [items, total] = await Promise.all([
+      User.find(filter).select(projection).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      User.countDocuments(filter),
+    ]);
+
+    res.json({
+      items,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    console.error("listUsersForAdmin error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
 module.exports = {
   generateOtp,
   verifyOtp,
@@ -568,4 +631,5 @@ module.exports = {
   getUserRedisData,
   getProfileData,
   updateProfileData,
+  listUsersForAdmin
 };

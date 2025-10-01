@@ -9,6 +9,7 @@ const {
   getUserRedisData,
   getProfileData,
   updateProfileData,
+  listUsersForAdmin
 } = require("../controllers/userController");
 const { updateCart } = require("../controllers/cartController");
 const {
@@ -38,6 +39,9 @@ router.put("/deleteAddress/:addressId", auth, deleteAddress);
 router.post("/getProfileData", auth, getProfileData);
 router.put("/updateProfileData", auth, updateProfileData);
 
-router.post("/redisSetRecentAddress",auth, redisSetRecentAddress);
+router.post("/redisSetRecentAddress", auth, redisSetRecentAddress);
+
+router.get("/listUsersForAdmin", auth, listUsersForAdmin);
+
 
 module.exports = router;

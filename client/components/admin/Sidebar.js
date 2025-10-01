@@ -33,6 +33,11 @@ const SideBar = () => {
       path: "/admin/all-margins",
       icon: assets.product_list_icon,
     },
+    {
+      name: "User List",
+      path: "/admin/user-list",
+      icon: assets.product_list_icon,
+    },
     { name: "Orders", path: "/admin/orders", icon: assets.order_icon },
   ];
 
