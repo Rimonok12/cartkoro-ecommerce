@@ -21,7 +21,7 @@ const SideBar = () => {
     {
       name: "Create/Update Margin",
       path: "/admin/create-margin",
-      icon: assets.product_list_icon,
+      icon: assets.add_icon,
     },
     {
       name: "Product List",
