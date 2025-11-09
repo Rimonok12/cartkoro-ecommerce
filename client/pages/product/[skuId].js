@@ -608,7 +608,7 @@
 //                     </td>
 //                     <td className="text-gray-800/70">{categoryName}</td>
 //                   </tr>
-                  
+
 //                   {isOutOfStock ? (
 //                     <tr>
 //                       <td className="text-gray-600 font-medium">Stock</td>
@@ -811,12 +811,7 @@
 //   );
 // }
 
-
-
-
 ///////
-
-
 
 // "use client";
 
@@ -1051,9 +1046,9 @@
 //     (async () => {
 //       try {
 //         const res = await fetch("/api/product/getAllFeaturedProducts", {
-//           method: "POST",                      
+//           method: "POST",
 //           headers: { "Content-Type": "application/json" },
-//           body: JSON.stringify({ categoryId, productId }), 
+//           body: JSON.stringify({ categoryId, productId }),
 //         });
 //         const data = await res.json();
 //         if (res.ok) setFeaturedProducts(data);
@@ -1182,7 +1177,6 @@
 
 //   const nextDescStage = () => setDescStage((s) => (s === 0 ? 1 : s === 1 ? 2 : 2));
 //   const resetDescStage = () => setDescStage(0);
-
 
 //   return (
 //     <>
@@ -1544,7 +1538,6 @@
 //           </div>
 //         )}
 
-
 //       </div>
 
 //       <Footer />
@@ -1552,25 +1545,22 @@
 //   );
 // }
 
-
-
 ///////////////////
 
+'use client';
 
-"use client";
-
-import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/router";
-import Image from "next/image";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import Loading from "@/components/Loading";
-import { RotateCcw } from "lucide-react";
-import ProductCard from "@/components/ProductCard";
-import SuccessModal from "@/components/SuccessModal";
-import { useAppContext } from "@/context/AppContext";
-import api from "@/lib/axios";
-import { essentialsOnLoad } from "@/lib/ssrHelper";
+import { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/router';
+import Image from 'next/image';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
+import Loading from '@/components/Loading';
+import { RotateCcw } from 'lucide-react';
+import ProductCard from '@/components/ProductCard';
+import SuccessModal from '@/components/SuccessModal';
+import { useAppContext } from '@/context/AppContext';
+import api from '@/lib/axios';
+import { essentialsOnLoad } from '@/lib/ssrHelper';
 
 export async function getServerSideProps(context) {
   const essentials = await essentialsOnLoad(context);
@@ -1578,9 +1568,9 @@ export async function getServerSideProps(context) {
 }
 
 /* ---------------- helpers ---------------- */
-const cx = (...c) => c.filter(Boolean).join(" ");
+const cx = (...c) => c.filter(Boolean).join(' ');
 const getValCI = (obj = {}, k) => {
-  const nk = String(k || "").toLowerCase();
+  const nk = String(k || '').toLowerCase();
   for (const [kk, vv] of Object.entries(obj || {})) {
     if (String(kk).toLowerCase() === nk) return vv;
   }
@@ -1596,7 +1586,9 @@ const parseVariantMeta = (raw, skus) => {
       keys && keys.length
         ? keys
         : uniq(
-            skus.flatMap((s) => Object.keys(s?.variant_values || {})).filter(Boolean)
+            skus
+              .flatMap((s) => Object.keys(s?.variant_values || {}))
+              .filter(Boolean)
           );
     const orders = {};
     allKeys.forEach((k) => {
@@ -1609,7 +1601,7 @@ const parseVariantMeta = (raw, skus) => {
     const keys = raw.variant_keys;
     const base = inferFromSkus(keys);
     const orders =
-      raw.orders && typeof raw.orders === "object"
+      raw.orders && typeof raw.orders === 'object'
         ? { ...base.orders, ...raw.orders }
         : base.orders;
     keys.forEach((k) => {
@@ -1617,20 +1609,25 @@ const parseVariantMeta = (raw, skus) => {
     });
     return { keys, orders };
   }
-  if (Array.isArray(raw) && raw.every((x) => x && typeof x === "object" && "name" in x)) {
+  if (
+    Array.isArray(raw) &&
+    raw.every((x) => x && typeof x === 'object' && 'name' in x)
+  ) {
     const keys = raw.map((x) => x.name);
     const orders = {};
     const base = inferFromSkus(keys);
     raw.forEach((x) => {
       orders[x.name] =
-        Array.isArray(x.values) && x.values.length ? x.values : base.orders[x.name] || [];
+        Array.isArray(x.values) && x.values.length
+          ? x.values
+          : base.orders[x.name] || [];
     });
     keys.forEach((k) => {
       if (!orders[k] || !orders[k].length) orders[k] = base.orders[k] || [];
     });
     return { keys, orders };
   }
-  if (Array.isArray(raw) && raw.every((x) => typeof x === "string")) {
+  if (Array.isArray(raw) && raw.every((x) => typeof x === 'string')) {
     return inferFromSkus(raw);
   }
   return inferFromSkus([]);
@@ -1648,7 +1645,7 @@ const normalizeSku = (s) => {
   if (vv.Size != null && vv.size == null) vv.size = vv.Size;
 
   const left =
-    typeof s?.initial_stock === "number" && typeof s?.sold_stock === "number"
+    typeof s?.initial_stock === 'number' && typeof s?.sold_stock === 'number'
       ? s.initial_stock - s.sold_stock
       : s?.left_stock;
 
@@ -1666,14 +1663,14 @@ export default function Product() {
   const [loading, setLoading] = useState(true);
 
   // product-level
-  const [productName, setProductName] = useState("");
-  const [productDesc, setProductDesc] = useState("");
-  const [brandName, setBrandName] = useState("");
-  const [categoryName, setCategoryName] = useState("");
-  const [sellerName, setSellerName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [productName, setProductName] = useState('');
+  const [productDesc, setProductDesc] = useState('');
+  const [brandName, setBrandName] = useState('');
+  const [categoryName, setCategoryName] = useState('');
+  const [sellerName, setSellerName] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [productDetails, setProductDetails] = useState([]);
-  const [productId, setProductId] = useState("");
+  const [productId, setProductId] = useState('');
 
   // sku data
   const [skus, setSkus] = useState([]);
@@ -1689,7 +1686,7 @@ export default function Product() {
 
   // cart state
   const [successOpen, setSuccessOpen] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState('');
   const [skuAdded, setSkuAdded] = useState(false);
 
   // collapse Product Details
@@ -1700,7 +1697,7 @@ export default function Product() {
 
   const handleSuccessOK = () => {
     setSuccessOpen(false);
-    router.push("/cart");
+    router.push('/cart');
   };
 
   /* ---------- load product ---------- */
@@ -1721,31 +1718,38 @@ export default function Product() {
           }
         }
         setLoading(true);
-        const res = await fetch(`/api/product/getProductBySkuId?skuId=${encodeURIComponent(skuId)}`);
+        const res = await fetch(
+          `/api/product/getProductBySkuId?skuId=${encodeURIComponent(skuId)}`
+        );
         const data = await res.json();
-        if (!res.ok) throw new Error(data?.message || "Fetch failed");
+        if (!res.ok) throw new Error(data?.message || 'Fetch failed');
 
         const main = data?.main_sku ? normalizeSku(data.main_sku) : null;
-        const others = Array.isArray(data?.other_skus) ? data.other_skus.map(normalizeSku) : [];
+        const others = Array.isArray(data?.other_skus)
+          ? data.other_skus.map(normalizeSku)
+          : [];
         const arr = [main, ...others].filter(Boolean);
 
         setSkus(arr);
-        const current = arr.find((s) => String(s?._id) === String(skuId)) || arr[0] || null;
+        const current =
+          arr.find((s) => String(s?._id) === String(skuId)) || arr[0] || null;
 
         setSelectedSku(current);
         setMainImage(current?.thumbnail_img || null);
-        setProductName(data?.product_name ?? "");
-        setProductDesc(data?.product_description ?? "");
-        setBrandName(data?.brand_name ?? "");
-        setSellerName(data?.seller_name ?? "");
-        setCategoryName(data?.category_name ?? "");
-        setCategoryId(data?.category_id ?? "");
-        setProductDetails(Array.isArray(data?.product_details) ? data.product_details : []);
-        setProductId(data?.product_id ?? "");
+        setProductName(data?.product_name ?? '');
+        setProductDesc(data?.product_description ?? '');
+        setBrandName(data?.brand_name ?? '');
+        setSellerName(data?.seller_name ?? '');
+        setCategoryName(data?.category_name ?? '');
+        setCategoryId(data?.category_id ?? '');
+        setProductDetails(
+          Array.isArray(data?.product_details) ? data.product_details : []
+        );
+        setProductId(data?.product_id ?? '');
         setSkuAdded(false);
         setDescStage(0); // reset description clamp when switching products
       } catch (e) {
-        console.error("Failed to fetch product:", e);
+        console.error('Failed to fetch product:', e);
       } finally {
         setLoading(false);
       }
@@ -1758,7 +1762,9 @@ export default function Product() {
     if (!categoryId || !skus.length) return;
     (async () => {
       try {
-        const res = await fetch(`/api/product/getVariants/${encodeURIComponent(categoryId)}`);
+        const res = await fetch(
+          `/api/product/getVariants/${encodeURIComponent(categoryId)}`
+        );
         const raw = await res.json();
         const meta = parseVariantMeta(raw, skus);
 
@@ -1774,10 +1780,14 @@ export default function Product() {
       } catch {
         const uniq = (xs) => [...new Set(xs.filter(Boolean))];
         const keys = uniq(
-          skus.flatMap((s) => Object.keys(s?.variant_values || {})).filter(Boolean)
+          skus
+            .flatMap((s) => Object.keys(s?.variant_values || {}))
+            .filter(Boolean)
         );
         const orders = {};
-        keys.forEach((k) => (orders[k] = uniq(skus.map((s) => s?.variant_values?.[k]))));
+        keys.forEach(
+          (k) => (orders[k] = uniq(skus.map((s) => s?.variant_values?.[k])))
+        );
         setVariantKeys(keys);
         setVariantOrders(orders);
       }
@@ -1789,15 +1799,15 @@ export default function Product() {
     if (!categoryId || !productId) return; // need both
     (async () => {
       try {
-        const res = await fetch("/api/product/getAllFeaturedProducts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/product/getAllFeaturedProducts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ categoryId, productId }),
         });
         const data = await res.json();
         if (res.ok) setFeaturedProducts(data);
       } catch (err) {
-        console.error("Failed to fetch featured products:", err);
+        console.error('Failed to fetch featured products:', err);
       }
     })();
   }, [categoryId, productId]);
@@ -1825,8 +1835,11 @@ export default function Product() {
     if (!sku) {
       const [changedKey, changedVal] = Object.entries(patch)[0] || [];
       if (changedKey != null) {
-        const pool = skus.filter((s) => eqVal(getValCI(s?.variant_values, changedKey), changedVal));
-        sku = pool.find((s) => Number(s?.left_stock ?? 0) > 0) || pool[0] || null;
+        const pool = skus.filter((s) =>
+          eqVal(getValCI(s?.variant_values, changedKey), changedVal)
+        );
+        sku =
+          pool.find((s) => Number(s?.left_stock ?? 0) > 0) || pool[0] || null;
       }
     }
 
@@ -1857,9 +1870,9 @@ export default function Product() {
     if (!selectedSku || Number(selectedSku.left_stock ?? 0) <= 0) return;
     if (isInCart(sku_id, cartData)) {
       setSkuAdded(true);
-      setSuccessMsg("This item is already in your cart.");
+      setSuccessMsg('This item is already in your cart.');
       setSuccessOpen(true);
-      if (redirect) router.push("/cart");
+      if (redirect) router.push('/cart');
       return;
     }
 
@@ -1871,59 +1884,114 @@ export default function Product() {
     }
 
     try {
-      await api.post("/user/updateCart", { items: [{ sku_id, quantity }] }, { withCredentials: true });
+      await api.post(
+        '/user/updateCart',
+        { items: [{ sku_id, quantity }] },
+        { withCredentials: true }
+      );
       addToCart(sku_id, quantity);
-      if (redirect) router.push("/cart");
+      if (redirect) router.push('/cart');
       else {
         setSkuAdded(true);
-        setSuccessMsg("Item added to cart successfully.");
+        setSuccessMsg('Item added to cart successfully.');
         setSuccessOpen(true);
       }
     } catch (err) {
-      console.error("Error updating cart:", err);
+      console.error('Error updating cart:', err);
     }
   };
 
   /* ---------- render ---------- */
   if (loading) return <Loading />;
-  if (!selectedSku) return <p className="text-center mt-20">Product not found</p>;
+  if (!selectedSku)
+    return <p className="text-center mt-20">Product not found</p>;
 
-  const gallery = [selectedSku.thumbnail_img, ...(selectedSku.side_imgs || [])].filter(Boolean);
+  const gallery = [
+    selectedSku.thumbnail_img,
+    ...(selectedSku.side_imgs || []),
+  ].filter(Boolean);
   const isOutOfStock = !selectedSku || Number(selectedSku.left_stock ?? 0) <= 0;
 
   const hasMrp = Number(selectedSku?.MRP) > 0;
   const hasSp = Number(selectedSku?.SP) > 0;
   const percentOff =
     hasMrp && hasSp
-      ? Math.round(((Number(selectedSku.MRP) - Number(selectedSku.SP)) / Number(selectedSku.MRP)) * 100)
+      ? Math.round(
+          ((Number(selectedSku.MRP) - Number(selectedSku.SP)) /
+            Number(selectedSku.MRP)) *
+            100
+        )
       : 0;
 
   /* description clamp styles (no plugin needed) */
   const descClampStyle = (() => {
     if (descStage === 0) {
       return {
-        display: "-webkit-box",
+        display: '-webkit-box',
         WebkitLineClamp: 1,
-        WebkitBoxOrient: "vertical",
-        overflow: "hidden",
+        WebkitBoxOrient: 'vertical',
+        overflow: 'hidden',
       };
     }
     if (descStage === 1) {
       return {
-        display: "-webkit-box",
+        display: '-webkit-box',
         WebkitLineClamp: 8,
-        WebkitBoxOrient: "vertical",
-        overflow: "hidden",
+        WebkitBoxOrient: 'vertical',
+        overflow: 'hidden',
       };
     }
     return {}; // full
   })();
 
-  const nextDescStage = () => setDescStage((s) => (s === 0 ? 1 : s === 1 ? 2 : 2));
+  const nextDescStage = () =>
+    setDescStage((s) => (s === 0 ? 1 : s === 1 ? 2 : 2));
   const resetDescStage = () => setDescStage(0);
 
   return (
     <>
+      <Head>
+        <title>{`${productName} | CartKoro`}</title>
+        <meta name="description" content={productDesc?.slice(0, 150)} />
+        <meta property="og:title" content={productName} />
+        <meta property="og:description" content={productDesc?.slice(0, 150)} />
+        <meta property="og:image" content={mainImage} />
+        <meta property="og:type" content="product" />
+        <meta
+          property="og:url"
+          content={`https://www.cartkoro.com/product/${selectedSku?._id}`}
+        />
+        <meta
+          name="keywords"
+          content={`${productName}, ${brandName}, buy online, ${categoryName}, CartKoro`}
+        />
+
+        {/* ✅ Product Structured Data for Google */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Product',
+              name: productName,
+              description: productDesc,
+              image: [mainImage],
+              sku: selectedSku?._id,
+              brand: { '@type': 'Brand', name: brandName },
+              offers: {
+                '@type': 'Offer',
+                url: `https://www.cartkoro.com/product/${selectedSku?._id}`,
+                priceCurrency: 'BDT',
+                price: selectedSku?.SP,
+                availability:
+                  selectedSku?.left_stock > 0
+                    ? 'https://schema.org/InStock'
+                    : 'https://schema.org/OutOfStock',
+              },
+            }),
+          }}
+        />
+      </Head>
       <Navbar />
 
       {/* <SuccessModal open={successOpen} message={successMsg} onOK={handleSuccessOK} /> */}
@@ -1957,8 +2025,9 @@ export default function Product() {
                       key={i}
                       onClick={() => setMainImage(img)}
                       className={cx(
-                        "relative aspect-square rounded-lg overflow-hidden bg-white",
-                        img === mainImage && "outline outline-2 outline-orange-500"
+                        'relative aspect-square rounded-lg overflow-hidden bg-white',
+                        img === mainImage &&
+                          'outline outline-2 outline-orange-500'
                       )}
                       aria-label={`thumb-${i}`}
                     >
@@ -2005,26 +2074,45 @@ export default function Product() {
                 <div className="space-y-5 mt-5">
                   {[...variantKeys]
                     .sort((a, b) =>
-                      String(a).toLowerCase() === "color" ? -1 : String(b).toLowerCase() === "color" ? 1 : 0
+                      String(a).toLowerCase() === 'color'
+                        ? -1
+                        : String(b).toLowerCase() === 'color'
+                        ? 1
+                        : 0
                     )
                     .map((key) => {
-                      const fromApi = (variantOrders?.[key] || []).filter(Boolean);
+                      const fromApi = (variantOrders?.[key] || []).filter(
+                        Boolean
+                      );
                       const fromSkus = [
-                        ...new Set(skus.map((s) => s?.variant_values?.[key]).filter(Boolean)),
+                        ...new Set(
+                          skus
+                            .map((s) => s?.variant_values?.[key])
+                            .filter(Boolean)
+                        ),
                       ];
-                      const uniqueValues = fromApi.length ? fromApi.filter((v) => fromSkus.includes(v)) : fromSkus;
+                      const uniqueValues = fromApi.length
+                        ? fromApi.filter((v) => fromSkus.includes(v))
+                        : fromSkus;
                       if (uniqueValues.length <= 1) return null;
 
                       const current = selectedSku?.variant_values?.[key];
-                      const isColorLike = String(key).toLowerCase() === "color";
+                      const isColorLike = String(key).toLowerCase() === 'color';
 
                       return (
                         <div key={key} className="flex items-start gap-4">
                           <div className="w-24 shrink-0 text-gray-600 font-medium pt-2">
-                            {String(key).charAt(0).toUpperCase() + String(key).slice(1)}
+                            {String(key).charAt(0).toUpperCase() +
+                              String(key).slice(1)}
                           </div>
 
-                          <div className={isColorLike ? "flex gap-2.5 flex-wrap" : "flex gap-2 flex-wrap"}>
+                          <div
+                            className={
+                              isColorLike
+                                ? 'flex gap-2.5 flex-wrap'
+                                : 'flex gap-2 flex-wrap'
+                            }
+                          >
                             {uniqueValues.map((val) => {
                               const active = val === current;
                               const hasStock = optionHasStock(key, val);
@@ -2032,9 +2120,18 @@ export default function Product() {
                               let thumb = null;
                               if (isColorLike) {
                                 const skuForVal =
-                                  findSku({ ...selectedSku?.variant_values, [key]: val }, { allowOOS: true }) ||
+                                  findSku(
+                                    {
+                                      ...selectedSku?.variant_values,
+                                      [key]: val,
+                                    },
+                                    { allowOOS: true }
+                                  ) ||
                                   findSku({ [key]: val }, { allowOOS: true });
-                                thumb = skuForVal?.thumbnail_img || selectedSku?.thumbnail_img || null;
+                                thumb =
+                                  skuForVal?.thumbnail_img ||
+                                  selectedSku?.thumbnail_img ||
+                                  null;
                               }
 
                               return isColorLike ? (
@@ -2043,13 +2140,19 @@ export default function Product() {
                                   onClick={() => onPickVariant({ [key]: val })}
                                   title={val}
                                   className={cx(
-                                    "relative w-16 h-14 rounded-lg overflow-hidden bg-white",
-                                    active && "outline outline-2 outline-orange-500",
-                                    !hasStock && "opacity-45"
+                                    'relative w-16 h-14 rounded-lg overflow-hidden bg-white',
+                                    active &&
+                                      'outline outline-2 outline-orange-500',
+                                    !hasStock && 'opacity-45'
                                   )}
                                 >
                                   {thumb ? (
-                                    <Image src={thumb} alt={val} fill className="object-cover" />
+                                    <Image
+                                      src={thumb}
+                                      alt={val}
+                                      fill
+                                      className="object-cover"
+                                    />
                                   ) : (
                                     <span className="text-sm px-2">{val}</span>
                                   )}
@@ -2059,11 +2162,11 @@ export default function Product() {
                                   key={val}
                                   onClick={() => onPickVariant({ [key]: val })}
                                   className={cx(
-                                    "px-3.5 py-2 border text-sm sm:text-base font-semibold bg-white transition",
+                                    'px-3.5 py-2 border text-sm sm:text-base font-semibold bg-white transition',
                                     active
-                                      ? "border-orange-500 text-orange-600"
-                                      : "border-gray-200 text-gray-900 hover:border-gray-300",
-                                    !hasStock && "opacity-45"
+                                      ? 'border-orange-500 text-orange-600'
+                                      : 'border-gray-200 text-gray-900 hover:border-gray-300',
+                                    !hasStock && 'opacity-45'
                                   )}
                                 >
                                   {val}
@@ -2083,25 +2186,37 @@ export default function Product() {
                   <tbody>
                     {brandName && (
                       <tr>
-                        <td className="text-gray-600 font-medium pr-6 py-1.5">Brand</td>
+                        <td className="text-gray-600 font-medium pr-6 py-1.5">
+                          Brand
+                        </td>
                         <td className="text-gray-800/85 py-1.5">{brandName}</td>
                       </tr>
                     )}
                     <tr>
-                      <td className="text-gray-600 font-medium pr-6 py-1.5">Category</td>
-                      <td className="text-gray-800/85 py-1.5">{categoryName}</td>
+                      <td className="text-gray-600 font-medium pr-6 py-1.5">
+                        Category
+                      </td>
+                      <td className="text-gray-800/85 py-1.5">
+                        {categoryName}
+                      </td>
                     </tr>
 
                     {isOutOfStock ? (
                       <tr>
-                        <td className="text-gray-600 font-medium pr-6 py-1.5">Stock</td>
-                        <td className="text-red-600 font-semibold py-1.5">Out of stock</td>
+                        <td className="text-gray-600 font-medium pr-6 py-1.5">
+                          Stock
+                        </td>
+                        <td className="text-red-600 font-semibold py-1.5">
+                          Out of stock
+                        </td>
                       </tr>
                     ) : (
                       selectedSku?.left_stock > 0 &&
                       selectedSku?.left_stock < 10 && (
                         <tr>
-                          <td className="text-gray-600 font-medium pr-6 py-1.5">Stock</td>
+                          <td className="text-gray-600 font-medium pr-6 py-1.5">
+                            Stock
+                          </td>
                           <td className="text-gray-800/85 py-1.5">
                             <span className="text-red-600 font-semibold">
                               Only {selectedSku.left_stock} Left, hurry up!
@@ -2112,7 +2227,9 @@ export default function Product() {
                     )}
 
                     <tr>
-                      <td className="text-gray-600 font-medium pr-6 py-1.5">Seller</td>
+                      <td className="text-gray-600 font-medium pr-6 py-1.5">
+                        Seller
+                      </td>
                       <td className="text-gray-800/85 py-1.5">{sellerName}</td>
                     </tr>
                   </tbody>
@@ -2124,7 +2241,7 @@ export default function Product() {
               <div className="hidden md:flex items-center gap-3 mt-6">
                 {skuAdded ? (
                   <button
-                    onClick={() => router.push("/cart")}
+                    onClick={() => router.push('/cart')}
                     className="w-full py-3.5 bg-green-500 text-white hover:bg-green-600"
                   >
                     Go to Cart
@@ -2133,8 +2250,8 @@ export default function Product() {
                   <button
                     onClick={() => addToCartHandler(selectedSku._id)}
                     className={cx(
-                      "w-full py-3.5 bg-gray-100 text-gray-900 hover:bg-gray-200",
-                      isOutOfStock && "opacity-50 cursor-not-allowed"
+                      'w-full py-3.5 bg-gray-100 text-gray-900 hover:bg-gray-200',
+                      isOutOfStock && 'opacity-50 cursor-not-allowed'
                     )}
                     disabled={isOutOfStock}
                   >
@@ -2145,8 +2262,8 @@ export default function Product() {
                 <button
                   onClick={() => addToCartHandler(selectedSku._id, 1, true)}
                   className={cx(
-                    "w-full py-3.5 bg-orange-500 text-white hover:bg-orange-600",
-                    isOutOfStock && "opacity-50 cursor-not-allowed"
+                    'w-full py-3.5 bg-orange-500 text-white hover:bg-orange-600',
+                    isOutOfStock && 'opacity-50 cursor-not-allowed'
                   )}
                   disabled={isOutOfStock}
                 >
@@ -2163,39 +2280,66 @@ export default function Product() {
                       <RotateCcw className="w-5 h-5 text-green-700" />
                       <div className="leading-5">
                         <div className="font-semibold text-gray-900">Easy</div>
-                        <div className="font-semibold text-gray-900">Returns</div>
-                        <div className="font-semibold text-gray-900">in 7 days</div>
+                        <div className="font-semibold text-gray-900">
+                          Returns
+                        </div>
+                        <div className="font-semibold text-gray-900">
+                          in 7 days
+                        </div>
                       </div>
                     </div>
 
                     {/* COD */}
                     <div className="flex items-center gap-2.5">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" strokeWidth="2"
-                        className="w-5 h-5 text-green-700">
-                        <rect x="3" y="6" width="18" height="12" rx="2" ry="2" />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="w-5 h-5 text-green-700"
+                      >
+                        <rect
+                          x="3"
+                          y="6"
+                          width="18"
+                          height="12"
+                          rx="2"
+                          ry="2"
+                        />
                         <circle cx="12" cy="12" r="2.5" />
                         <path d="M7 12h.01M17 12h.01" />
                       </svg>
                       <div className="leading-5">
                         <div className="font-semibold text-gray-900">COD</div>
-                        <div className="font-semibold text-gray-900">Available</div>
+                        <div className="font-semibold text-gray-900">
+                          Available
+                        </div>
                       </div>
                     </div>
 
                     {/* Delivery */}
                     <div className="flex items-center gap-2.5">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" strokeWidth="2"
-                        className="w-5 h-5 text-green-700">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="w-5 h-5 text-green-700"
+                      >
                         <path d="M3 7h11v8H3z" />
                         <path d="M14 9h4l3 3v3h-7z" />
                         <circle cx="7.5" cy="17.5" r="1.5" />
                         <circle cx="17.5" cy="17.5" r="1.5" />
                       </svg>
                       <div className="leading-5">
-                        <div className="font-semibold text-gray-900">Delivery In</div>
-                        <div className="font-semibold text-gray-900">3 Days</div>
+                        <div className="font-semibold text-gray-900">
+                          Delivery In
+                        </div>
+                        <div className="font-semibold text-gray-900">
+                          3 Days
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2210,8 +2354,12 @@ export default function Product() {
                     onClick={() => setDetailsOpen((x) => !x)}
                     className="w-full flex items-center justify-between bg-white px-2 py-2 text-left"
                   >
-                    <span className="text-lg font-semibold text-gray-900">Product Details</span>
-                    <span className="text-2xl leading-none text-gray-600">{detailsOpen ? "−" : "+"}</span>
+                    <span className="text-lg font-semibold text-gray-900">
+                      Product Details
+                    </span>
+                    <span className="text-2xl leading-none text-gray-600">
+                      {detailsOpen ? '−' : '+'}
+                    </span>
                   </button>
 
                   {detailsOpen && (
@@ -2219,12 +2367,15 @@ export default function Product() {
                       <table className="w-full">
                         <tbody>
                           {productDetails.map((d, i) => (
-                            <tr key={`${d.key}-${i}`} className="odd:bg-gray-50">
+                            <tr
+                              key={`${d.key}-${i}`}
+                              className="odd:bg-gray-50"
+                            >
                               <td className="w-1/3 sm:w-1/4 px-2 py-2 text-gray-600 font-medium align-top capitalize">
-                                {String(d.key || "").trim()}
+                                {String(d.key || '').trim()}
                               </td>
                               <td className="px-2 py-2 text-gray-800/90 align-top">
-                                {String(d.value || "").trim()}
+                                {String(d.value || '').trim()}
                               </td>
                             </tr>
                           ))}
@@ -2240,7 +2391,9 @@ export default function Product() {
 
         {productDesc && (
           <div className="mt-8 md:mt-10">
-            <h3 className="text-2xl font-semibold text-gray-900 mb-2">Product Description</h3>
+            <h3 className="text-2xl font-semibold text-gray-900 mb-2">
+              Product Description
+            </h3>
             <div className="text-gray-700 leading-7" style={descClampStyle}>
               {productDesc}
             </div>
@@ -2272,7 +2425,8 @@ export default function Product() {
           <div className="flex flex-col items-center">
             <div className="flex flex-col items-center mb-4 mt-14">
               <p className="text-3xl font-medium">
-                Featured <span className="font-medium text-orange-600">Products</span>
+                Featured{' '}
+                <span className="font-medium text-orange-600">Products</span>
               </p>
               <div className="w-28 h-0.5 bg-orange-600 mt-2"></div>
             </div>
@@ -2289,7 +2443,7 @@ export default function Product() {
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 p-3 flex gap-3 md:hidden">
         {skuAdded ? (
           <button
-            onClick={() => router.push("/cart")}
+            onClick={() => router.push('/cart')}
             className="flex-1 py-3.5 bg-green-500 text-white"
           >
             Go to Cart
@@ -2298,8 +2452,8 @@ export default function Product() {
           <button
             onClick={() => addToCartHandler(selectedSku._id)}
             className={cx(
-              "flex-1 py-3.5 bg-gray-100 text-gray-900",
-              isOutOfStock && "opacity-50 cursor-not-allowed"
+              'flex-1 py-3.5 bg-gray-100 text-gray-900',
+              isOutOfStock && 'opacity-50 cursor-not-allowed'
             )}
             disabled={isOutOfStock}
           >
@@ -2309,8 +2463,8 @@ export default function Product() {
         <button
           onClick={() => addToCartHandler(selectedSku._id, 1, true)}
           className={cx(
-            "flex-1 py-3.5 bg-orange-500 text-white",
-            isOutOfStock && "opacity-50 cursor-not-allowed"
+            'flex-1 py-3.5 bg-orange-500 text-white',
+            isOutOfStock && 'opacity-50 cursor-not-allowed'
           )}
           disabled={isOutOfStock}
         >

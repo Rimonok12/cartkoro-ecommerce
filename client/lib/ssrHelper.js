@@ -1,13 +1,13 @@
 // lib/ssrHelper.js
-import axios from "axios";
+import axios from 'axios';
 /**
  * Redirects to login if user has no refresh token
  */
-export async function requireAuth(context, redirectTo = "/login") {
+export async function requireAuth(context, redirectTo = '/login') {
   const { req } = context;
   const cookies = req.cookies || {};
 
-  const refreshToken = cookies["CK-REF-T"];
+  const refreshToken = cookies['CK-REF-T'];
 
   if (!refreshToken) {
     return {
@@ -27,7 +27,7 @@ export async function requireAuth(context, redirectTo = "/login") {
 export async function essentialsOnLoad(context) {
   const { req } = context;
   const cookies = req.cookies || {};
-  const refreshToken = cookies["CK-REF-T"];
+  const refreshToken = cookies['CK-REF-T'];
 
   if (!refreshToken) return { props: {} };
   try {
@@ -39,14 +39,14 @@ export async function essentialsOnLoad(context) {
       {
         withCredentials: true,
         headers: {
-          cookie: req.headers.cookie || "", // forward cookies
+          cookie: req.headers.cookie || '', // forward cookies
         },
         signal: controller.signal,
       }
     );
 
     const data = res.data; // use res.data, not res.json()
-    console.log("data from essential", data);
+    console.log('data from essential', data);
 
     return {
       props: {
@@ -57,14 +57,14 @@ export async function essentialsOnLoad(context) {
       },
     };
   } catch (err) {
-    console.error("Error in essentialsOnLoad:", err);
+    console.error('Error in essentialsOnLoad:', err);
     return { props: {} };
   }
 }
 
 export async function requireB2B(
   context,
-  { anyOf = ["is_seller", "is_admin", "is_super_admin"], redirectTo = "/" } = {}
+  { anyOf = ['is_seller', 'is_admin', 'is_super_admin'], redirectTo = '/' } = {}
 ) {
   // Get essentials (and implicitly ensure a valid refresh token)
   const essentials = await essentialsOnLoad(context);
@@ -89,7 +89,7 @@ export async function requireB2B(
 
 export async function requireB2BAdmin(
   context,
-  { anyOf = ["is_admin", "is_super_admin"], redirectTo = "/" } = {}
+  { anyOf = ['is_admin', 'is_super_admin'], redirectTo = '/' } = {}
 ) {
   // Get essentials (and implicitly ensure a valid refresh token)
   const essentials = await essentialsOnLoad(context);

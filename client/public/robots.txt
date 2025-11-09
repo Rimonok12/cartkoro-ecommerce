@@ -1,22 +1,47 @@
-# *
+# ===========================
+# CartKoro Robots.txt (SEO Optimized)
+# ===========================
+
 User-agent: *
+# Allow all public pages
 Allow: /
+
+# Block non-public or duplicate pages
 Disallow: /cart
 Disallow: /login
 Disallow: /register
+Disallow: /checkout
 Disallow: /api/
 Disallow: /admin
 Disallow: /admin/*
 Disallow: /seller
 Disallow: /seller/*
-Disallow: /useLaterFile/*
 Disallow: /order-details
 Disallow: /my-orders
 Disallow: /account/*
+Disallow: /useLaterFile/*
+Disallow: /*?*sort=*
+Disallow: /*?*filter=*
+Disallow: /*?*page=*
+Disallow: /*?*ref=*
+Disallow: /_next/
+Disallow: /static/
 
-# Host
+# ===========================
+# Crawl & Host Settings
+# ===========================
 Host: https://www.cartkoro.com
 
-# Sitemaps
+# ===========================
+# Sitemap Indexes
+# ===========================
 Sitemap: https://www.cartkoro.com/sitemap.xml
 Sitemap: https://www.cartkoro.com/server-sitemap.xml
+Sitemap: https://www.cartkoro.com/sitemap-static.xml
+
+# ===========================
+# Notes
+# - sitemap.xml acts as the sitemap index (links to static + dynamic)
+# - server-sitemap.xml dynamically generates product/category URLs
+# - sitemap-static.xml contains fixed pages (about, contact, etc.)
+# ===========================
