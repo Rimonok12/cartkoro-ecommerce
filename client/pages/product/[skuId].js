@@ -1952,23 +1952,34 @@ export default function Product() {
   return (
     <>
       <Head>
-        <title>{`${productName} | CartKoro`}</title>
-        <meta name="description" content={productDesc?.slice(0, 150)} />
-        <meta property="og:title" content={productName} />
-        <meta property="og:description" content={productDesc?.slice(0, 150)} />
-        <meta property="og:image" content={mainImage} />
-        <meta property="og:type" content="product" />
+        <title>
+          {productName ? `${productName} | CartKoro` : 'CartKoro Product'}
+        </title>
         <meta
-          property="og:url"
-          content={`https://www.cartkoro.com/product/${selectedSku?._id}`}
+          name="description"
+          content={(productDesc || 'Buy online at CartKoro.').slice(0, 155)}
         />
-        <meta
-          name="keywords"
-          content={`${productName}, ${brandName}, buy online, ${categoryName}, CartKoro`}
+        <link
+          rel="canonical"
+          href={`https://www.cartkoro.com/product/${selectedSku?._id || ''}`}
         />
 
-        {/* ✅ Product Structured Data for Google */}
+        {/* Open Graph for social sharing */}
+        <meta property="og:type" content="product" />
+        <meta property="og:title" content={productName || 'CartKoro Product'} />
+        <meta
+          property="og:description"
+          content={(productDesc || 'Buy online at CartKoro.').slice(0, 200)}
+        />
+        {mainImage && <meta property="og:image" content={mainImage} />}
+        <meta
+          property="og:url"
+          content={`https://www.cartkoro.com/product/${selectedSku?._id || ''}`}
+        />
+
+        {/* JSON-LD Product Schema */}
         <script
+          key="product-jsonld"
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
@@ -1976,14 +1987,16 @@ export default function Product() {
               '@type': 'Product',
               name: productName,
               description: productDesc,
-              image: [mainImage],
+              image: mainImage ? [mainImage] : undefined,
               sku: selectedSku?._id,
-              brand: { '@type': 'Brand', name: brandName },
+              brand: { '@type': 'Brand', name: brandName || 'CartKoro' },
               offers: {
                 '@type': 'Offer',
-                url: `https://www.cartkoro.com/product/${selectedSku?._id}`,
+                url: `https://www.cartkoro.com/product/${
+                  selectedSku?._id || ''
+                }`,
                 priceCurrency: 'BDT',
-                price: selectedSku?.SP,
+                price: selectedSku?.SP ?? undefined,
                 availability:
                   selectedSku?.left_stock > 0
                     ? 'https://schema.org/InStock'

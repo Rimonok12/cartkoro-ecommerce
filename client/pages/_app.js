@@ -1,4 +1,4 @@
-// pages/_app.js (or _app.tsx)
+// pages/_app.js
 import '@/styles/globals.css';
 import Head from 'next/head';
 import Script from 'next/script';
@@ -10,7 +10,7 @@ import { AppContextProvider } from '@/context/AppContext';
 
 const outfit = Outfit({ subsets: ['latin'], weight: ['300', '400', '500'] });
 
-// Your Pixel ID
+// Facebook Pixel ID
 const FB_PIXEL_ID = '687447924417053';
 
 export default function App({ Component, pageProps }) {
@@ -29,63 +29,17 @@ export default function App({ Component, pageProps }) {
 
   return (
     <>
+      {/* Basic site-level Head */}
       <Head>
-        <title>
-          {productName ? `${productName} | CartKoro` : 'CartKoro Product'}
-        </title>
+        <title>CartKoro - Online Shopping Site for Fashion, Electronics</title>
         <meta
           name="description"
-          content={(productDesc || 'Buy online at CartKoro.').slice(0, 155)}
+          content="Shop fashion, electronics, and accessories at CartKoro – Bangladesh’s trusted online shopping site."
         />
-        <link
-          rel="canonical"
-          href={`https://www.cartkoro.com/product/${selectedSku?._id || ''}`}
-        />
-
-        {/* Open Graph */}
-        <meta property="og:type" content="product" />
-        <meta property="og:title" content={productName || 'CartKoro Product'} />
-        <meta
-          property="og:description"
-          content={(productDesc || 'Buy online at CartKoro.').slice(0, 200)}
-        />
-        {mainImage && <meta property="og:image" content={mainImage} />}
-        <meta
-          property="og:url"
-          content={`https://www.cartkoro.com/product/${selectedSku?._id || ''}`}
-        />
-
-        {/* JSON-LD Product schema */}
-        <script
-          key="product-jsonld"
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'Product',
-              name: productName,
-              description: productDesc,
-              image: mainImage ? [mainImage] : undefined,
-              sku: selectedSku?._id,
-              brand: { '@type': 'Brand', name: brandName || 'CartKoro' },
-              offers: {
-                '@type': 'Offer',
-                url: `https://www.cartkoro.com/product/${
-                  selectedSku?._id || ''
-                }`,
-                priceCurrency: 'BDT',
-                price: selectedSku?.SP ?? undefined,
-                availability:
-                  selectedSku?.left_stock > 0
-                    ? 'https://schema.org/InStock'
-                    : 'https://schema.org/OutOfStock',
-              },
-            }),
-          }}
-        />
+        <link rel="icon" href="/favico.png" />
       </Head>
 
-      {/* Meta Pixel base code */}
+      {/* Facebook Pixel base code */}
       <Script id="fb-pixel" strategy="afterInteractive">
         {`
           !function(f,b,e,v,n,t,s){
@@ -100,7 +54,7 @@ export default function App({ Component, pageProps }) {
           fbq('track', 'PageView');
         `}
       </Script>
-      {/* noscript fallback */}
+
       <noscript>
         <img
           height="1"
@@ -111,6 +65,7 @@ export default function App({ Component, pageProps }) {
         />
       </noscript>
 
+      {/* Global layout */}
       <div className={`${outfit.className} antialiased text-gray-700`}>
         <AppContextProvider
           initialUserData={pageProps.initialUserData}

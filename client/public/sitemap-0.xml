@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:mobile="http://www.google.com/schemas/sitemap-mobile/1.0" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
-<url><loc>https://www.cartkoro.com</loc><lastmod>2025-09-20T11:18:24.688Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://www.cartkoro.com/about</loc><lastmod>2025-09-20T11:18:24.690Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://www.cartkoro.com/all-products</loc><lastmod>2025-09-20T11:18:24.690Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://www.cartkoro.com/contact</loc><lastmod>2025-09-20T11:18:24.690Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://www.cartkoro.com/privacy</loc><lastmod>2025-09-20T11:18:24.690Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://www.cartkoro.com/rewards</loc><lastmod>2025-09-20T11:18:24.690Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://www.cartkoro.com/terms</loc><lastmod>2025-09-20T11:18:24.690Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/about</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/account/address</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/account/profile</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/admin</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/all-products</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/contact</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/my-orders</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/order-details</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/privacy</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/rewards</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/seller</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/seller/add-product</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/seller/orders</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/seller/product-list</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/server-sitemap.xml</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/terms</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.cartkoro.com/useLaterFile/add-address</loc><lastmod>2025-11-09T11:18:32.520Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
 </urlset>

@@ -2,47 +2,20 @@
 const nextSitemapConfig = {
   siteUrl: 'https://www.cartkoro.com',
   generateRobotsTxt: true,
-  sitemapSize: 5000,
-  exclude: [
-    '/cart',
-    '/login',
-    '/register',
-    '/api/*',
-    '/admin',
-    '/admin/*',
-    '/seller',
-    '/seller/*',
-    '/useLaterFile/*',
-    '/order-details',
-    '/my-orders',
-    '/account/*',
-  ],
+  sitemapSize: 7000,
+  outDir: './public',
+  changefreq: 'daily',
+  priority: 0.7,
+  exclude: ['/admin/*', '/api/*', '/cart', '/login', '/register'],
   robotsTxtOptions: {
     policies: [
-      {
-        userAgent: '*',
-        allow: '/',
-        disallow: [
-          '/cart',
-          '/login',
-          '/register',
-          '/api/',
-          '/admin',
-          '/admin/*',
-          '/seller',
-          '/seller/*',
-          '/useLaterFile/*',
-          '/order-details',
-          '/my-orders',
-          '/account/*',
-        ],
-      },
+      { userAgent: '*', allow: '/', disallow: ['/admin', '/cart', '/api'] },
     ],
     additionalSitemaps: [
-      'https://www.cartkoro.com/sitemap.xml',
       'https://www.cartkoro.com/server-sitemap.xml',
+      'https://www.cartkoro.com/sitemap-static.xml',
     ],
   },
 };
 
-export default nextSitemapConfig;
+module.exports = nextSitemapConfig; // ✅ <-- Use this
