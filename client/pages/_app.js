@@ -30,25 +30,59 @@ export default function App({ Component, pageProps }) {
   return (
     <>
       <Head>
-        <title>CartKoro - Online Shopping Site For Fashion, Electronics</title>
+        <title>
+          {productName ? `${productName} | CartKoro` : 'CartKoro Product'}
+        </title>
         <meta
           name="description"
-          content="CartKoro - Online Trusted Shopping Site For You, easy purchasing online site"
+          content={(productDesc || 'Buy online at CartKoro.').slice(0, 155)}
         />
-        <meta
-          name="keywords"
-          content="CartKoro, online shopping, gadgets, electronics, watch, earphone, fashion, cloth"
+        <link
+          rel="canonical"
+          href={`https://www.cartkoro.com/product/${selectedSku?._id || ''}`}
         />
-        <link rel="canonical" href="https://www.cartkoro.com/" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta property="og:title" content="CartKoro Online Shop" />
+
+        {/* Open Graph */}
+        <meta property="og:type" content="product" />
+        <meta property="og:title" content={productName || 'CartKoro Product'} />
         <meta
           property="og:description"
-          content="Buy gadgets, electronics, cloths and more online at CartKoro."
+          content={(productDesc || 'Buy online at CartKoro.').slice(0, 200)}
         />
-        <meta property="og:url" content="https://www.cartkoro.com/" />
-        <meta property="og:type" content="website" />
-        <link rel="icon" href="/favico.png" />
+        {mainImage && <meta property="og:image" content={mainImage} />}
+        <meta
+          property="og:url"
+          content={`https://www.cartkoro.com/product/${selectedSku?._id || ''}`}
+        />
+
+        {/* JSON-LD Product schema */}
+        <script
+          key="product-jsonld"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Product',
+              name: productName,
+              description: productDesc,
+              image: mainImage ? [mainImage] : undefined,
+              sku: selectedSku?._id,
+              brand: { '@type': 'Brand', name: brandName || 'CartKoro' },
+              offers: {
+                '@type': 'Offer',
+                url: `https://www.cartkoro.com/product/${
+                  selectedSku?._id || ''
+                }`,
+                priceCurrency: 'BDT',
+                price: selectedSku?.SP ?? undefined,
+                availability:
+                  selectedSku?.left_stock > 0
+                    ? 'https://schema.org/InStock'
+                    : 'https://schema.org/OutOfStock',
+              },
+            }),
+          }}
+        />
       </Head>
 
       {/* Meta Pixel base code */}

@@ -1552,6 +1552,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
+import Head from 'next/head';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Loading from '@/components/Loading';
